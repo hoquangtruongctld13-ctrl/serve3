@@ -1,0 +1,100 @@
+﻿@* VỊ TRÍ: Pages/Admin/Users/Create.cshtml *@
+@* TẠO FILE MỚI VÀ DÁN TOÀN BỘ CODE NÀY VÀO *@
+
+@page
+@model SubPhim.Server.Pages.Admin.Users.CreateModel
+@{
+    ViewData["Title"] = "Tạo người dùng mới";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+    var allFeatures = Enum.GetValues<SubPhim.Server.Data.GrantedFeatures>().Where(f => f != SubPhim.Server.Data.GrantedFeatures.None);
+    var allApis = Enum.GetValues<SubPhim.Server.Data.AllowedApis>().Where(a => a != SubPhim.Server.Data.AllowedApis.None);
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">Tạo một tài khoản mới trực tiếp từ bảng điều khiển của quản trị viên.</p>
+<hr />
+
+<div class="row">
+    <div class="col-md-8">
+        <form method="post">
+            @* Dùng thẻ div này để hiển thị các lỗi validation chung *@
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <div class="card mb-4">
+                <div class="card-header">Thông tin tài khoản</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="Input.Username" class="form-label"></label>
+                        <input asp-for="Input.Username" class="form-control" />
+                        <span asp-validation-for="Input.Username" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Input.Email" class="form-label"></label>
+                        <input asp-for="Input.Email" class="form-control" />
+                        <span asp-validation-for="Input.Email" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Input.Password" class="form-label"></label>
+                        <input asp-for="Input.Password" class="form-control" />
+                        <span asp-validation-for="Input.Password" class="text-danger"></span>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Input.Tier" class="form-label">Gói thuê bao</label>
+                            <select asp-for="Input.Tier" asp-items="Html.GetEnumSelectList<SubPhim.Server.Data.SubscriptionTier>()" class="form-select"></select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Input.MaxDevices" class="form-label">Giới hạn thiết bị</label>
+                            <input type="number" asp-for="Input.MaxDevices" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">Quyền Truy Cập API (Không chọn = mặc định theo gói)</div>
+                <div class="card-body">
+                    <div class="row">
+                        @foreach (var api in allApis)
+                        {
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="Input.AllowedApiAccess" value="@api">
+                                    <label class="form-check-label">@api.ToString()</label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">Quyền Truy Cập Tính Năng</div>
+                <div class="card-body">
+                    <div class="row">
+                        @foreach (var feature in allFeatures)
+                        {
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="Input.GrantedFeatures" value="@feature">
+                                    <label class="form-check-label">@feature.ToString()</label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-check-circle-fill"></i> Tạo Tài Khoản</button>
+                <a asp-page="./Index" class="btn btn-secondary btn-lg">Hủy bỏ</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

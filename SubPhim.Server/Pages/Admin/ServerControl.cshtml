@@ -1,0 +1,61 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.ServerControlModel
+@{
+    ViewData["Title"] = "Quản lý Server";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+<h1>@ViewData["Title"]</h1>
+<hr />
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success" id="feedback-message">@Model.Message</div>
+}
+
+<div class="card border-danger mb-4">
+    <div class="card-header bg-danger text-white">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>KHỞI ĐỘNG LẠI SERVER</strong>
+    </div>
+    <div class="card-body">
+        <p class="text-danger">
+            <strong>CẢNH BÁO:</strong> Hành động này sẽ khiến server ngừng hoạt động ngay lập tức trong một khoảng thời gian ngắn (thường là dưới 1 phút) trước khi nó được tự động khởi chạy lại bởi nền tảng hosting (Fly.io).
+        </p>
+        <p>
+            Tất cả người dùng đang hoạt động (nếu có) sẽ bị mất kết nối tạm thời. Chỉ thực hiện hành động này khi bạn chắc chắn rằng việc khởi động lại là cần thiết (ví dụ: sau khi thay đổi các cấu hình quan trọng cần khởi động lại để áp dụng).
+        </p>
+        <form id="restart-form" method="post" onsubmit="return handleRestart(event);">
+            <button type="submit" class="btn btn-danger btn-lg w-100" asp-page-handler="Restart">
+                <i class="bi bi-power me-2"></i>
+                Tôi đã hiểu và muốn Khởi Động Lại Ngay
+            </button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function handleRestart(event) {
+            // Ngăn form submit ngay lập tức
+            event.preventDefault();
+
+            // Hiển thị hộp thoại xác nhận
+            if (confirm('Bạn có thực sự muốn khởi động lại server không? Mọi hoạt động sẽ bị gián đoạn.')) {
+                const form = event.target;
+                const button = form.querySelector('button[type="submit"]');
+                const feedbackDiv = document.getElementById('feedback-message');
+
+                // Vô hiệu hóa nút và hiển thị trạng thái
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang gửi lệnh...';
+
+                // Gửi form đi
+                form.submit();
+            }
+
+            // Nếu người dùng nhấn "Cancel", return false để hủy submit
+            return false;
+        }
+    </script>
+}

@@ -1,0 +1,374 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.VipTranslation.ExternalApiKeyDetailModel
+@{
+    ViewData["Title"] = $"Chi tiết API Key - {Model.ApiKey?.DisplayName ?? Model.ApiKey?.KeyPrefix + "..." + Model.ApiKey?.KeySuffix}";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i>@Model.SuccessMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>@Model.ErrorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="/Admin/VipTranslation/ExternalApiKeys">External API Keys</a></li>
+                <li class="breadcrumb-item active">Chi tiết</li>
+            </ol>
+        </nav>
+        <h1><i class="bi bi-key me-2"></i>@ViewData["Title"]</h1>
+    </div>
+    <div>
+        @if (Model.ApiKey?.IsEnabled == true)
+        {
+            <form method="post" asp-page-handler="DisableKey" asp-route-id="@Model.ApiKey.Id" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-warning" onclick="return confirm('Vô hiệu hóa API key này?')">
+                    <i class="bi bi-slash-circle me-2"></i>Vô hiệu hóa
+                </button>
+            </form>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="EnableKey" asp-route-id="@Model.ApiKey?.Id" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-success" onclick="return confirm('Kích hoạt API key này?')">
+                    <i class="bi bi-check-circle me-2"></i>Kích hoạt
+                </button>
+            </form>
+        }
+        <a href="/Admin/VipTranslation/ExternalApiKeys" class="btn btn-secondary ms-2">
+            <i class="bi bi-arrow-left me-2"></i>Quay lại
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column: Key Info & Edit -->
+    <div class="col-lg-6">
+        <!-- Key Info Card -->
+        <div class="card mb-4">
+            <div class="card-header"><strong>🔑 Thông tin API Key</strong></div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="UpdateKey" asp-route-id="@Model.ApiKey?.Id">
+                    @Html.AntiForgeryToken()
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Key ID</label>
+                        <input type="text" class="form-control font-monospace" value="@(Model.ApiKey?.KeyPrefix)...@(Model.ApiKey?.KeySuffix)" readonly disabled />
+                        <small class="form-text text-muted">Key ID không thể thay đổi. Chỉ hiển thị prefix và 4 ký tự cuối.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Tên hiển thị</label>
+                        <input type="text" name="DisplayName" class="form-control" value="@Model.ApiKey?.DisplayName" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Gán cho</label>
+                        <input type="text" name="AssignedTo" class="form-control" value="@Model.ApiKey?.AssignedTo" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="Email" class="form-control" value="@Model.ApiKey?.Email" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea name="Notes" class="form-control" rows="2">@Model.ApiKey?.Notes</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">RPM Limit</label>
+                        <input type="number" name="RpmLimit" class="form-control" value="@Model.ApiKey?.RpmLimit" min="1" />
+                        <small class="form-text text-muted">Số request tối đa mỗi phút</small>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Ngày tạo</label>
+                            <input type="text" class="form-control" value="@Model.ApiKey?.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")" readonly disabled />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Lần dùng cuối</label>
+                            <input type="text" class="form-control" value="@(Model.ApiKey?.LastUsedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Chưa sử dụng")" readonly disabled />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Trạng thái</label>
+                        <div>
+                            @if (Model.ApiKey?.IsEnabled == true)
+                            {
+                                <span class="badge bg-success fs-6">✅ Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary fs-6">⛔ Disabled</span>
+                            }
+                            @if (Model.ApiKey?.ExpiresAt.HasValue == true)
+                            {
+                                if (Model.ApiKey.ExpiresAt < DateTime.UtcNow)
+                                {
+                                    <span class="badge bg-danger ms-2">Đã hết hạn</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-info ms-2">Hết hạn: @Model.ApiKey.ExpiresAt.Value.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-2"></i>Lưu thay đổi
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Credits & Stats -->
+    <div class="col-lg-6">
+        <!-- Credit Card -->
+        <div class="card mb-4">
+            <div class="card-header"><strong>💰 Quản lý Credit</strong></div>
+            <div class="card-body">
+                <div class="row text-center mb-4">
+                    <div class="col-4">
+                        <div class="p-3 bg-primary text-white rounded">
+                            <h3 class="mb-0">@Model.ApiKey?.CreditBalance.ToString("N0")</h3>
+                            <small>Số dư hiện tại</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-success text-white rounded">
+                            <h3 class="mb-0">@Model.ApiKey?.TotalCreditsAdded.ToString("N0")</h3>
+                            <small>Tổng đã nạp</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-info text-white rounded">
+                            <h3 class="mb-0">@Model.ApiKey?.TotalCreditsUsed.ToString("N0")</h3>
+                            <small>Tổng đã dùng</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-light mb-3">
+                    <i class="bi bi-calculator me-2"></i>
+                    <strong>Quy đổi:</strong>
+                    @{
+                        var creditBalance = Model.ApiKey?.CreditBalance ?? 0;
+                        var creditsPerChar = Model.Settings.CreditsPerCharacter > 0 ? Model.Settings.CreditsPerCharacter : 5;
+                        var vndPerCredit = Model.Settings.VndPerCredit > 0 ? Model.Settings.VndPerCredit : 10;
+                        var chars = creditBalance / creditsPerChar;
+                        var vnd = creditBalance * vndPerCredit;
+                    }
+                    @creditBalance.ToString("N0") credits = @chars.ToString("N0") ký tự = @vnd.ToString("N0") VND
+                </div>
+
+                <form method="post" asp-page-handler="AddCredits" asp-route-id="@Model.ApiKey?.Id">
+                    @Html.AntiForgeryToken()
+                    <div class="input-group mb-2">
+                        <input type="number" name="Amount" class="form-control" placeholder="Số lượng credit" min="1" required />
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-plus-circle me-2"></i>Nạp Credit
+                        </button>
+                    </div>
+                    <input type="text" name="Description" class="form-control" placeholder="Mô tả (VD: Nạp credit tháng 12)" required />
+                </form>
+            </div>
+        </div>
+
+        <!-- Stats Card -->
+        <div class="card mb-4">
+            <div class="card-header"><strong>📊 Thống kê sử dụng</strong></div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-3">
+                        <h4 class="mb-0">@Model.TotalJobs</h4>
+                        <small class="text-muted">Tổng jobs</small>
+                    </div>
+                    <div class="col-3">
+                        <h4 class="mb-0 text-success">@Model.CompletedJobs</h4>
+                        <small class="text-muted">Hoàn thành</small>
+                    </div>
+                    <div class="col-3">
+                        <h4 class="mb-0 text-danger">@Model.FailedJobs</h4>
+                        <small class="text-muted">Thất bại</small>
+                    </div>
+                    <div class="col-3">
+                        <h4 class="mb-0 text-info">@Model.TotalCreditsUsed.ToString("N0")</h4>
+                        <small class="text-muted">Credit đã dùng</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation for History -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="usage-tab" data-bs-toggle="tab" data-bs-target="#usage" type="button">
+            <i class="bi bi-list-check me-2"></i>Lịch sử sử dụng (@Model.UsageLogs.Count)
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" type="button">
+            <i class="bi bi-cash-stack me-2"></i>Lịch sử giao dịch (@Model.CreditTransactions.Count)
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Usage History Tab -->
+    <div class="tab-pane fade show active" id="usage" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Session ID</th>
+                                <th>Thời gian</th>
+                                <th>Ngôn ngữ</th>
+                                <th>Dòng input</th>
+                                <th>Ký tự output</th>
+                                <th>Credit</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.UsageLogs.Any())
+                            {
+                                @foreach (var log in Model.UsageLogs)
+                                {
+                                    <tr>
+                                        <td><code class="small">@log.SessionId.Substring(0, Math.Min(12, log.SessionId.Length))...</code></td>
+                                        <td>@log.StartedAt.ToLocalTime().ToString("dd/MM HH:mm")</td>
+                                        <td>@(log.TargetLanguage ?? "-")</td>
+                                        <td>@log.InputLines</td>
+                                        <td>@log.OutputCharacters.ToString("N0")</td>
+                                        <td>@log.CreditsCharged.ToString("N0")</td>
+                                        <td>
+                                            @switch (log.Status)
+                                            {
+                                                case SubPhim.Server.Data.UsageStatus.Completed:
+                                                    <span class="badge bg-success">✅ Completed</span>
+                                                    break;
+                                                case SubPhim.Server.Data.UsageStatus.Failed:
+                                                    <span class="badge bg-danger">❌ Failed</span>
+                                                    break;
+                                                case SubPhim.Server.Data.UsageStatus.Cancelled:
+                                                    <span class="badge bg-warning">🚫 Cancelled</span>
+                                                    break;
+                                                case SubPhim.Server.Data.UsageStatus.Refunded:
+                                                    <span class="badge bg-info">🔄 Refunded</span>
+                                                    break;
+                                                default:
+                                                    <span class="badge bg-secondary">⏳ Pending</span>
+                                                    break;
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                                        Chưa có lịch sử sử dụng
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transactions Tab -->
+    <div class="tab-pane fade" id="transactions" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Thời gian</th>
+                                <th>Loại</th>
+                                <th>Số lượng</th>
+                                <th>Số dư sau</th>
+                                <th>Mô tả</th>
+                                <th>Tạo bởi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.CreditTransactions.Any())
+                            {
+                                @foreach (var trans in Model.CreditTransactions)
+                                {
+                                    <tr>
+                                        <td>@trans.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")</td>
+                                        <td>
+                                            @switch (trans.Type)
+                                            {
+                                                case SubPhim.Server.Data.TransactionType.Deposit:
+                                                    <span class="badge bg-success">💰 Nạp</span>
+                                                    break;
+                                                case SubPhim.Server.Data.TransactionType.Usage:
+                                                    <span class="badge bg-info">📤 Sử dụng</span>
+                                                    break;
+                                                case SubPhim.Server.Data.TransactionType.Refund:
+                                                    <span class="badge bg-warning">🔄 Hoàn</span>
+                                                    break;
+                                                case SubPhim.Server.Data.TransactionType.Adjustment:
+                                                    <span class="badge bg-secondary">⚙️ Điều chỉnh</span>
+                                                    break;
+                                                case SubPhim.Server.Data.TransactionType.Bonus:
+                                                    <span class="badge bg-primary">🎁 Bonus</span>
+                                                    break;
+                                            }
+                                        </td>
+                                        <td class="@(trans.Amount >= 0 ? "text-success" : "text-danger")">
+                                            @(trans.Amount >= 0 ? "+" : "")@trans.Amount.ToString("N0")
+                                        </td>
+                                        <td>@trans.BalanceAfter.ToString("N0")</td>
+                                        <td>@trans.Description</td>
+                                        <td>@(trans.CreatedBy ?? "System")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                                        Chưa có lịch sử giao dịch
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,470 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.Users.IndexModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
+@using SubPhim.Server.Data
+
+@{
+    ViewData["Title"] = "Quản lý người dùng";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+    // Truyền các tham số hiện tại cho Pager
+    ViewData["SearchString"] = Model.SearchString;
+    ViewData["Tab"] = Model.Tab;
+}
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1>@ViewData["Title"]</h1>
+    <div class="d-flex gap-2">
+        <form method="post" asp-page-handler="ResetAllDevices" onsubmit="return confirm('CẢNH BÁO!\n\nHành động này sẽ xóa TOÀN BỘ thông tin đăng nhập thiết bị của TẤT CẢ người dùng.\n\nBạn có chắc chắn muốn tiếp tục không?');">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-danger">
+                <i class="bi bi-hdd-stack-x-fill"></i> Reset Tất Cả Thiết Bị
+            </button>
+        </form>
+        <a asp-page="Create" class="btn btn-success">
+            <i class="bi bi-person-plus-fill"></i> Tạo User Mới
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <form method="get" class="mb-0">
+            <div class="input-group">
+                <input type="search" class="form-control" placeholder="Tìm theo UID, Username hoặc Email..." asp-for="SearchString" />
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Tìm</button>
+                @if (!string.IsNullOrEmpty(Model.SearchString))
+                {
+                    <a asp-page="./Index" class="btn btn-secondary">Xóa tìm kiếm</a>
+                }
+            </div>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        @if (!string.IsNullOrEmpty(Model.SearchString))
+        {
+            <h4 class="p-3 mb-0 border-bottom">Kết quả tìm kiếm cho: "@Model.SearchString"</h4>
+            @await Html.PartialAsync("_UserList", Model.DisplayUsers)
+        }
+        else
+        {
+            <ul class="nav nav-tabs p-3">
+                <li class="nav-item">
+                    <a class="nav-link @(Model.Tab == "premium" ? "active" : "")" asp-page="./Index" asp-route-tab="premium">
+                        Năm & Vĩnh viễn <span class="badge bg-primary rounded-pill">@Model.PremiumUserCount</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(Model.Tab == "monthly" ? "active" : "")" asp-page="./Index" asp-route-tab="monthly">
+                        Tháng & Ngày <span class="badge bg-info text-dark rounded-pill">@Model.MonthlyUserCount</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(Model.Tab == "free" ? "active" : "")" asp-page="./Index" asp-route-tab="free">
+                        Miễn phí <span class="badge bg-secondary rounded-pill">@Model.FreeUserCount</span>
+                    </a>
+                </li>
+            </ul>
+            
+            @await Html.PartialAsync("_UserList", Model.DisplayUsers)
+        }
+    </div>
+</div>
+
+<!-- === BẮT ĐẦU SỬA ĐỔI: Cập nhật Modal Chỉnh sửa quyền === -->
+<div class="modal fade" id="permissionsModal" tabindex="-1" aria-labelledby="permissionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="permissionsModalLabel">Chỉnh sửa quyền cho: <span id="modalUserName" class="fw-bold"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modalUserId" />
+                <div id="modal-alert-placeholder"></div>
+
+                <h5 class="mt-2"><i class="bi bi-lightning-charge-fill"></i> Thao Tác Nhanh</h5>
+                <div class="p-2 rounded bg-light mb-4">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text">+/- Ngày</span>
+                                <input type="number" class="form-control" id="modalDays" value="30">
+                                <button class="btn btn-success" id="addSubTimeBtn" title="Thêm ngày"><i class="bi bi-plus-lg"></i></button>
+                                <button class="btn btn-warning" id="subtractSubTimeBtn" title="Trừ ngày"><i class="bi bi-dash-lg"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="btn-group w-100">
+                                <button class="btn btn-info" id="resetDevicesBtn" title="Reset Thiết Bị">
+                                    <i class="bi bi-hdd-stack-fill"></i>
+                                </button>
+                                <button class="btn btn-danger" id="banUserBtn" title="Cấm Tài Khoản & Thiết Bị">
+                                    <i class="bi bi-shield-slash-fill"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row align-items-end">
+                    <div class="col-md-6">
+                        <h5 class="mt-4"><i class="bi bi-sliders"></i> Giới hạn Sử dụng (Nhập -1 để dùng mặc định theo gói)</h5>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalTier" class="form-label fw-bold">Thay đổi Gói</label>
+                        <select id="modalTier" class="form-select form-select-sm">
+                            @foreach (var tier in Enum.GetValues<SubscriptionTier>())
+                            {
+                                <option value="@tier">@tier.ToString()</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="modalIsYearlyPro">
+                            <label class="form-check-label" for="modalIsYearlyPro">
+                                <small>Gói Năm Pro</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-2" id="quickApplyProContainer" style="display: none;">
+                    <div class="col-12">
+                        <div class="alert alert-info p-2">
+                            <button type="button" class="btn btn-sm btn-warning me-2" id="applyProSettingsBtn">
+                                <i class="bi bi-star-fill"></i> Áp dụng cài đặt PRO
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="applyStandardSettingsBtn">
+                                <i class="bi bi-check-circle"></i> Áp dụng cài đặt Thường
+                            </button>
+                            <small class="ms-2 text-muted">Nhanh chóng áp dụng cài đặt từ Admin/TierManagement</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row p-2 rounded bg-light mb-3">
+                    <div class="col-md-4 mb-2">
+                        <label for="modalDailyVideoLimit" class="form-label">Video / Ngày</label>
+                        <input type="number" class="form-control" id="modalDailyVideoLimit">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalDailyRequestLimit" class="form-label">Dịch Truyện / Ngày</label>
+                        <input type="number" class="form-control" id="modalDailyRequestLimit">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalDailySrtLimit" class="form-label">Dịch SRT / Ngày</label>
+                        <input type="number" class="form-control" id="modalDailySrtLimit">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalDailyLocalSrtLimit" class="form-label">Dịch SRT Local / Ngày</label>
+                        <input type="number" class="form-control" id="modalDailyLocalSrtLimit">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalAioCharLimit" class="form-label">Ký tự AIO / Ngày</label>
+                        <input type="number" class="form-control" id="modalAioCharLimit">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalAioRpm" class="form-label">AIO RPM</label>
+                        <input type="number" class="form-control" id="modalAioRpm">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalTtsCharLimit" class="form-label">Ký tự TTS (AioLauncherTts)</label>
+                        <input type="number" class="form-control" id="modalTtsCharLimit">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label for="modalVipSrtLimit" class="form-label">Dòng VIP SRT / Ngày</label>
+                        <input type="number" class="form-control" id="modalVipSrtLimit">
+                    </div>
+                </div>
+
+                <h5><i class="bi bi-robot"></i> Quyền Truy Cập API</h5>
+                <div class="row p-2 rounded bg-light mb-3">
+                    @foreach (var apiName in Model.AllApiNames)
+                    {
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" value="@apiName" id="api-check-@apiName">
+                                <label class="form-check-label" for="api-check-@apiName">@apiName</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <h5><i class="bi bi-toggles2"></i> Quyền Truy Cập Tính Năng</h5>
+                <div class="row p-2 rounded bg-light">
+                    @foreach (var featureName in Model.AllFeatureNames)
+                    {
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" value="@featureName" id="feature-check-@featureName">
+                                <label class="form-check-label" for="feature-check-@featureName">@featureName</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-primary" id="savePermissionsBtn">Lưu thay đổi</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- === KẾT THÚC SỬA ĐỔI === -->
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modalElement = document.getElementById('permissionsModal');
+            if (!modalElement) return;
+
+            const antiforgeryToken = "@Xsrf.GetAndStoreTokens(HttpContext).RequestToken";
+            const modalTierSelector = document.getElementById('modalTier');
+            const modalIsYearlyPro = document.getElementById('modalIsYearlyPro');
+            const quickApplyProContainer = document.getElementById('quickApplyProContainer');
+            
+            // Function to toggle Pro quick apply buttons based on tier selection
+            function toggleProQuickApply() {
+                const selectedTier = modalTierSelector.value;
+                // Only show Pro quick apply for Yearly tier
+                if (selectedTier === 'Yearly') {
+                    quickApplyProContainer.style.display = 'block';
+                } else {
+                    quickApplyProContainer.style.display = 'none';
+                }
+            }
+            
+            async function applyTierDefaults(tier, isPro = null) {
+                try {
+                    let url = `/Admin/Users?handler=TierDefaults&tier=${tier}`;
+                    if (isPro !== null) {
+                        url += `&isPro=${isPro}`;
+                    }
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        showAlert('warning', 'Không thể tải cài đặt mặc định cho gói này.');
+                        return;
+                    }
+                    const data = await response.json();
+                    document.getElementById('modalDailyVideoLimit').value = data.dailyVideoCount;
+                    document.getElementById('modalDailyRequestLimit').value = data.dailyTranslationRequests;
+                    document.getElementById('modalDailySrtLimit').value = data.dailySrtLineLimit;
+                    document.getElementById('modalDailyLocalSrtLimit').value = data.dailyLocalSrtLimit;
+                    // === BẮT ĐẦU THÊM MỚI ===
+                    document.getElementById('modalAioCharLimit').value = data.aioCharacterLimit;
+                    document.getElementById('modalAioRpm').value = data.aioRequestsPerMinute;
+                    document.getElementById('modalTtsCharLimit').value = data.ttsCharacterLimit;
+                    document.getElementById('modalVipSrtLimit').value = data.dailyVipSrtLimit;
+                    // === KẾT THÚC THÊM MỚI ===
+                    document.querySelectorAll('#permissionsModal input[id^="api-check-"]').forEach(checkbox => {
+                        checkbox.checked = data.allowedApis.includes(checkbox.value);
+                    });
+                    document.querySelectorAll('#permissionsModal input[id^="feature-check-"]').forEach(checkbox => {
+                        checkbox.checked = data.grantedFeatures.includes(checkbox.value);
+                    });
+
+                } catch (error) {
+                    showAlert('danger', 'Lỗi kết nối khi lấy cài đặt mặc định.');
+                    console.error("Fetch tier defaults error:", error);
+                }
+            }
+
+            modalTierSelector.addEventListener('change', function (event) {
+                const selectedTier = event.target.value;
+                toggleProQuickApply();
+                // When tier changes, apply defaults based on current IsYearlyPro checkbox state for Yearly tier only
+                if (selectedTier === 'Yearly') {
+                    const isPro = modalIsYearlyPro.checked;
+                    applyTierDefaults(selectedTier, isPro);
+                } else {
+                    applyTierDefaults(selectedTier);
+                }
+            });
+            
+            // Add event listener for IsYearlyPro checkbox (only relevant for Yearly tier)
+            modalIsYearlyPro.addEventListener('change', function (event) {
+                const selectedTier = modalTierSelector.value;
+                if (selectedTier === 'Yearly') {
+                    applyTierDefaults(selectedTier, event.target.checked);
+                }
+            });
+            
+            // Quick apply Pro settings button
+            document.getElementById('applyProSettingsBtn').addEventListener('click', function() {
+                const selectedTier = modalTierSelector.value;
+                modalIsYearlyPro.checked = true;
+                applyTierDefaults(selectedTier, true);
+            });
+            
+            // Quick apply Standard settings button
+            document.getElementById('applyStandardSettingsBtn').addEventListener('click', function() {
+                const selectedTier = modalTierSelector.value;
+                modalIsYearlyPro.checked = false;
+                applyTierDefaults(selectedTier, false);
+            });
+
+            function parseFlags(flagsString) {
+                if (!flagsString || flagsString === 'None') return [];
+                return flagsString.split(',').map(s => s.trim());
+            }
+
+            modalElement.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const userId = button.getAttribute('data-user-id');
+                const userName = button.getAttribute('data-user-name');
+                const userTier = button.getAttribute('data-user-tier');
+                const grantedFeatures = parseFlags(button.getAttribute('data-granted-features'));
+                const allowedApis = parseFlags(button.getAttribute('data-allowed-apis'));
+                const dailyVideoLimit = button.getAttribute('data-daily-video-limit');
+                const dailyRequestLimit = button.getAttribute('data-daily-request-limit');
+                const dailySrtLimit = button.getAttribute('data-daily-srt-limit');
+                const dailyLocalSrtLimit = button.getAttribute('data-daily-local-srt-limit');
+                // === BẮT ĐẦU THÊM MỚI ===
+                const aioCharLimit = button.getAttribute('data-aio-char-limit');
+                const aioRpm = button.getAttribute('data-aio-rpm');
+                const ttsCharLimit = button.getAttribute('data-tts-char-limit');
+                const vipSrtLimit = button.getAttribute('data-vip-srt-limit');
+                const isYearlyPro = button.getAttribute('data-is-yearly-pro') === 'true';
+                // === KẾT THÚC THÊM MỚI ===
+
+                document.getElementById('modalUserId').value = userId;
+                document.getElementById('modalUserName').innerText = userName;
+                document.getElementById('modal-alert-placeholder').innerHTML = '';
+
+                document.getElementById('modalTier').value = userTier;
+                document.getElementById('modalDailyVideoLimit').value = dailyVideoLimit;
+                document.getElementById('modalDailyRequestLimit').value = dailyRequestLimit;
+                document.getElementById('modalDailySrtLimit').value = dailySrtLimit;
+                document.getElementById('modalDailyLocalSrtLimit').value = dailyLocalSrtLimit;
+                // === BẮT ĐẦU THÊM MỚI ===
+                document.getElementById('modalAioCharLimit').value = aioCharLimit;
+                document.getElementById('modalAioRpm').value = aioRpm;
+                document.getElementById('modalTtsCharLimit').value = ttsCharLimit;
+                document.getElementById('modalVipSrtLimit').value = vipSrtLimit;
+                document.getElementById('modalIsYearlyPro').checked = isYearlyPro;
+                // === KẾT THÚC THÊM MỚI ===
+                
+                // Show/hide Pro quick apply buttons based on tier
+                toggleProQuickApply();
+
+                document.querySelectorAll('#permissionsModal input[id^="api-check-"]').forEach(checkbox => {
+                    checkbox.checked = allowedApis.includes(checkbox.value);
+                });
+                document.querySelectorAll('#permissionsModal input[id^="feature-check-"]').forEach(checkbox => {
+                    checkbox.checked = grantedFeatures.includes(checkbox.value);
+                });
+            });
+
+            document.getElementById('savePermissionsBtn').addEventListener('click', async function () {
+                const userId = document.getElementById('modalUserId').value;
+                const saveButton = this;
+                saveButton.disabled = true;
+                saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...';
+
+                const formData = new URLSearchParams();
+                formData.append('id', userId);
+                formData.append('tier', document.getElementById('modalTier').value);
+                formData.append('dailyVideoLimit', document.getElementById('modalDailyVideoLimit').value);
+                formData.append('dailyRequestLimitOverride', document.getElementById('modalDailyRequestLimit').value);
+                formData.append('dailySrtLineLimit', document.getElementById('modalDailySrtLimit').value);
+                formData.append('dailyLocalSrtLimit', document.getElementById('modalDailyLocalSrtLimit').value);
+                // === BẮT ĐẦU THÊM MỚI ===
+                formData.append('aioCharacterLimitOverride', document.getElementById('modalAioCharLimit').value);
+                formData.append('aioRpmOverride', document.getElementById('modalAioRpm').value);
+                formData.append('ttsCharacterLimit', document.getElementById('modalTtsCharLimit').value);
+                formData.append('dailyVipSrtLimit', document.getElementById('modalVipSrtLimit').value);
+                formData.append('isYearlyPro', document.getElementById('modalIsYearlyPro').checked);
+                // === KẾT THÚC THÊM MỚI ===
+
+                const selectedApis = Array.from(document.querySelectorAll('#permissionsModal input[id^="api-check-"]:checked')).map(cb => cb.value);
+                selectedApis.forEach(api => formData.append('apis', api));
+
+                const selectedFeatures = Array.from(document.querySelectorAll('#permissionsModal input[id^="feature-check-"]:checked')).map(cb => cb.value);
+                selectedFeatures.forEach(feature => formData.append('features', feature));
+
+                try {
+                    const response = await fetch(`/Admin/Users?handler=UpdatePermissions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': antiforgeryToken },
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        showAlert('success', "Cập nhật thành công! Trang sẽ được tải lại...");
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                         const result = await response.json();
+                        showAlert('danger', result.message || 'Có lỗi xảy ra.');
+                    }
+                } catch (error) {
+                    showAlert('danger', 'Lỗi kết nối đến server.');
+                } finally {
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = 'Lưu thay đổi';
+                }
+            });
+
+            async function performQuickAction(handler, data, confirmMessage) {
+                if (confirmMessage && !confirm(confirmMessage)) {
+                    return;
+                }
+
+                const userId = document.getElementById('modalUserId').value;
+                const formData = new URLSearchParams();
+                formData.append('id', userId);
+                for (const key in data) {
+                    formData.append(key, data[key]);
+                }
+
+                try {
+                    const response = await fetch(`/Admin/Users?handler=${handler}`, {
+                        method: 'POST',
+                        headers: { 'RequestVerificationToken': antiforgeryToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        showAlert('success', result.message + " Trang sẽ tải lại sau giây lát...");
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        showAlert('danger', result.message || 'Có lỗi xảy ra.');
+                    }
+                } catch (error) {
+                    showAlert('danger', 'Lỗi kết nối đến server.');
+                }
+            }
+
+            document.getElementById('addSubTimeBtn').addEventListener('click', function() {
+                const days = document.getElementById('modalDays').value;
+                performQuickAction('AddSubTime', { days: days });
+            });
+
+            document.getElementById('subtractSubTimeBtn').addEventListener('click', function() {
+                const days = document.getElementById('modalDays').value;
+                performQuickAction('SubtractSubTime', { days: days }, 'CẢNH BÁO!\nHành động này sẽ TRỪ đi số ngày sử dụng của tài khoản này.\n\nBạn có chắc chắn muốn tiếp tục?');
+            });
+
+            document.getElementById('resetDevicesBtn').addEventListener('click', function() {
+                performQuickAction('ResetDevices', {}, 'Bạn có chắc chắn muốn XÓA TOÀN BỘ thiết bị của user này?');
+            });
+
+            document.getElementById('banUserBtn').addEventListener('click', function() {
+                performQuickAction('BanUserAndDevices', {}, 'CẢNH BÁO!\nHành động này sẽ CHẶN tài khoản và CẤM TẤT CẢ các thiết bị đã đăng nhập của người dùng này.\n\nBạn có chắc chắn muốn tiếp tục?');
+            });
+
+            function showAlert(type, message) {
+                const placeholder = document.getElementById('modal-alert-placeholder');
+                placeholder.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            }
+        });
+    </script>
+}

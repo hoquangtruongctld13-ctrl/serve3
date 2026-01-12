@@ -1,0 +1,99 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.SaOcrModel
+@{
+    ViewData["Title"] = "Quản lý SA OCR";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">Quản lý các Service Account (SA) dùng cho chức năng OCR ảnh truyện. Mỗi SA phải đi kèm với một ID thư mục Google Drive đã được chia sẻ quyền Editor cho SA đó.</p>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                Thêm Service Account mới
+            </div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="AddKey">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+                    <div class="mb-3">
+                        <label asp-for="Input.DriveFolderId" class="form-label"></label>
+                        <input asp-for="Input.DriveFolderId" class="form-control" placeholder="Nhập ID thư mục trên Google Drive..." />
+                        <span asp-validation-for="Input.DriveFolderId" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Input.JsonKey" class="form-label"></label>
+                        <textarea asp-for="Input.JsonKey" class="form-control" rows="8" placeholder="Dán nội dung của file service-account.json vào đây."></textarea>
+                        <span asp-validation-for="Input.JsonKey" class="text-danger"></span>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-plus-circle-fill me-2"></i>Thêm Key
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                Danh sách Service Account hiện có (@Model.ServiceAccounts.Count)
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Project ID</th>
+                                <th>Client Email</th>
+                                <th>Folder ID</th>
+                                <th class="text-center">Trạng thái</th>
+                                <th class="text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Model.ServiceAccounts.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted p-4">Chưa có Service Account OCR nào.</td>
+                                </tr>
+                            }
+                            @foreach (var sa in Model.ServiceAccounts)
+                            {
+                                <tr>
+                                    <td><small><code>@sa.ProjectId</code></small></td>
+                                    <td><small>@sa.ClientEmail</small></td>
+                                    <td><small><code>@sa.DriveFolderId</code></small></td>
+                                    <td class="text-center">
+                                        @if (sa.IsEnabled)
+                                        {
+                                            <span class="badge bg-success">Hoạt động</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Tắt</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        <form method="post" asp-page-handler="Delete" asp-route-id="@sa.Id" onsubmit="return confirm('Bạn có chắc muốn xóa vĩnh viễn Service Account này?');">
+                                            <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,185 @@
+﻿@model PagedList.Core.IPagedList<SubPhim.Server.Pages.Admin.Users.UserViewModel>
+@using SubPhim.Server.Utils
+@using SubPhim.Server.Data
+@using PagedList.Core.Mvc
+
+@if (Model != null && Model.Any())
+{
+    <!-- CHẾ ĐỘ BẢNG CHO DESKTOP -->
+    <div class="table-responsive d-none d-lg-block">
+        <table class="table table-hover table-striped mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>UID</th>
+                    <th>Username</th>
+                    <th>Tier</th>
+                    <th>Hạn đăng ký</th>
+                    <th>Video (dùng/tổng)</th>
+                    <th>Dịch Truyện (dùng/tổng)</th>
+                    <th>AIO (dùng/tổng)</th> <!-- THÊM MỚI -->
+                    <th>Dịch SRT (dùng/tổng)</th>
+                    <th>TTS (dùng/tổng)</th>
+                    <th style="min-width: 200px;">Quyền API</th>
+                    <th style="min-width: 200px;">Quyền Tính Năng</th>
+                    <th>Đăng nhập cuối</th>
+                    <th class="text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in Model)
+                {
+                    <tr id="user-row-@user.Id" class="@(user.IsBlocked ? "table-danger" : "")">
+                        <td>
+                            <a asp-page="./Details" asp-route-id="@user.Id" class="fw-bold">@user.Uid</a>
+                            @if ((user.Tier == "Yearly" || user.Tier == "Lifetime") && user.IsYearlyPro)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">PRO</span>
+                            }
+                        </td>
+                        <td>
+                            <a asp-page="./Details" asp-route-id="@user.Id">@user.Username</a>
+                            @if (user.IsBlocked)
+                            {
+                                <span class="badge bg-danger ms-1">Bị chặn</span>
+                            }
+                        </td>
+                        <td id="tier-cell-@user.Id">@user.Tier</td>
+                        <td id="expiry-cell-@user.Id">@DisplayHelper.GetSubscriptionStatus(Enum.Parse<SubscriptionTier>(user.Tier), user.SubscriptionExpiry)</td>
+                        <td id="video-limit-cell-@user.Id">@user.VideosProcessedToday / @(user.DailyVideoLimit == -1 ? "∞" : user.DailyVideoLimit)</td>
+                        <td id="request-limit-cell-@user.Id">@user.DailyRequestCount / @(user.DailyRequestLimitOverride == -1 ? "∞" : user.DailyRequestLimitOverride)</td>
+                        <!-- === BẮT ĐẦU THÊM MỚI === -->
+                        <td id="aio-limit-cell-@user.Id">@user.AioCharactersUsedToday.ToString("N0") / @user.AioCharacterLimit.ToString("N0")</td>
+                        <!-- === KẾT THÚC THÊM MỚI === -->
+                        <td id="srt-limit-cell-@user.Id">@user.SrtLinesUsedToday / @user.DailySrtLineLimit</td>
+                        <td id="tts-limit-cell-@user.Id">@user.TtsCharactersUsed / @user.TtsCharacterLimit</td>
+                        <td id="apis-cell-@user.Id">@Html.Raw(DisplayHelper.FormatFlags(user.AllowedApiAccess))</td>
+                        <td id="features-cell-@user.Id">@Html.Raw(DisplayHelper.FormatFlags(user.GrantedFeatures))</td>
+                        <td>@(user.LastLogin?.ToVietNamTimeString("g") ?? "Chưa đăng nhập")</td>
+                        <td class="text-center">
+                            <!-- === BẮT ĐẦU SỬA ĐỔI: Thêm data- attributes === -->
+                            <button class="btn btn-sm btn-warning manage-permissions-btn" data-bs-toggle="modal" data-bs-target="#permissionsModal"
+                                    data-user-id="@user.Id" data-user-name="@user.Username" data-user-tier="@user.Tier"
+                                    data-granted-features="@user.GrantedFeatures" data-allowed-apis="@user.AllowedApiAccess"
+                                    data-daily-video-limit="@user.DailyVideoLimit" data-daily-request-limit="@user.DailyRequestLimitOverride"
+                                    data-daily-srt-limit="@user.DailySrtLineLimit" data-daily-local-srt-limit="@user.DailyLocalSrtLimit"
+                                    data-aio-char-limit="@user.AioCharacterLimit" data-aio-rpm="@user.AioRpm"
+                                    data-tts-char-limit="@user.TtsCharacterLimit" data-vip-srt-limit="@user.DailyVipSrtLimit"
+                                    data-is-yearly-pro="@user.IsYearlyPro.ToString().ToLower()">
+                                <i class="bi bi-key-fill"></i> Sửa quyền
+                            </button>
+                            <!-- === KẾT THÚC SỬA ĐỔI === -->
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- CHẾ ĐỘ CARD CHO MOBILE -->
+    <div class="d-lg-none">
+        @foreach (var user in Model)
+        {
+            <div class="card m-2 @(user.IsBlocked ? "bg-danger-subtle" : "")">
+                <div class="card-body pb-2">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">
+                            <a asp-page="./Details" asp-route-id="@user.Id" class="fw-bold text-decoration-none">@user.Username</a>
+                            @if (user.IsBlocked)
+                            {
+                                <span class="badge bg-danger ms-1">Bị chặn</span>
+                            }
+                        </h5>
+                        <span class="badge bg-secondary">@user.Tier</span>
+                    </div>
+                    <p class="card-text text-muted small">
+                        UID: @user.Uid
+                        @if ((user.Tier == "Yearly" || user.Tier == "Lifetime") && user.IsYearlyPro)
+                        {
+                            <span class="badge bg-warning text-dark ms-1">PRO</span>
+                        }
+                    </p>
+                    <div class="row g-2 small">
+                        <div class="col-6"><strong>Hạn:</strong> @DisplayHelper.GetSubscriptionStatus(Enum.Parse<SubscriptionTier>(user.Tier), user.SubscriptionExpiry)</div>
+                        <div class="col-6"><strong>Đăng nhập cuối:</strong> @(user.LastLogin?.ToVietNamTimeString("g") ?? "Chưa có")</div>
+                        <div class="col-6"><strong>Video:</strong> @user.VideosProcessedToday / @(user.DailyVideoLimit == -1 ? "∞" : user.DailyVideoLimit)</div>
+                        <div class="col-6"><strong>Dịch Truyện:</strong> @user.DailyRequestCount / @(user.DailyRequestLimitOverride == -1 ? "∞" : user.DailyRequestLimitOverride)</div>
+                        <!-- === BẮT ĐẦU THÊM MỚI === -->
+                        <div class="col-12"><strong>AIO:</strong> @user.AioCharactersUsedToday.ToString("N0") / @user.AioCharacterLimit.ToString("N0")</div>
+                        <!-- === KẾT THÚC THÊM MỚI === -->
+                        <div class="col-12"><strong>Dịch SRT:</strong> @user.SrtLinesUsedToday / @user.DailySrtLineLimit</div>
+                    </div>
+                    <hr class="my-2">
+                    <div class="small mb-2">
+                        <strong>Quyền API:</strong>
+                        <div class="mt-1">@Html.Raw(DisplayHelper.FormatFlags(user.AllowedApiAccess))</div>
+                    </div>
+                    <div class="small">
+                        <strong>Quyền Tính Năng:</strong>
+                        <div class="mt-1">@Html.Raw(DisplayHelper.FormatFlags(user.GrantedFeatures))</div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0 pt-0">
+                    <!-- === BẮT ĐẦU SỬA ĐỔI: Thêm data- attributes === -->
+                    <button class="btn btn-sm btn-warning w-100 manage-permissions-btn" data-bs-toggle="modal" data-bs-target="#permissionsModal"
+                            data-user-id="@user.Id" data-user-name="@user.Username" data-user-tier="@user.Tier"
+                            data-granted-features="@user.GrantedFeatures" data-allowed-apis="@user.AllowedApiAccess"
+                            data-daily-video-limit="@user.DailyVideoLimit" data-daily-request-limit="@user.DailyRequestLimitOverride"
+                            data-daily-srt-limit="@user.DailySrtLineLimit" data-daily-local-srt-limit="@user.DailyLocalSrtLimit"
+                            data-aio-char-limit="@user.AioCharacterLimit" data-aio-rpm="@user.AioRpm"
+                            data-tts-char-limit="@user.TtsCharacterLimit" data-vip-srt-limit="@user.DailyVipSrtLimit"
+                            data-is-yearly-pro="@user.IsYearlyPro.ToString().ToLower()">
+                        <i class="bi bi-key-fill"></i> Sửa quyền
+                    </button>
+                    <!-- === KẾT THÚC SỬA ĐỔI === -->
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="text-center p-4">
+        <p class="mb-0">Không có người dùng nào phù hợp với tiêu chí.</p>
+    </div>
+}
+@if (Model != null && Model.PageCount > 1)
+{
+    <div class="card-footer d-flex justify-content-center">
+        <nav aria-label="Page navigation">
+            <ul class="pagination">
+                @if (Model.HasPreviousPage)
+                {
+                    <li class="page-item">
+                        <a class="page-link" asp-page="./Index" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-searchString="@ViewData["SearchString"]" asp-route-tab="@ViewData["Tab"]">Trước</a>
+                    </li>
+                }
+                else
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">Trước</span>
+                    </li>
+                }
+
+                @for (var i = 1; i <= Model.PageCount; i++)
+                {
+                    <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                        <a class="page-link" asp-page="./Index" asp-route-pageNumber="@i" asp-route-searchString="@ViewData["SearchString"]" asp-route-tab="@ViewData["Tab"]">@i</a>
+                    </li>
+                }
+
+                @if (Model.HasNextPage)
+                {
+                    <li class="page-item">
+                        <a class="page-link" asp-page="./Index" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-searchString="@ViewData["SearchString"]" asp-route-tab="@ViewData["Tab"]">Sau</a>
+                    </li>
+                }
+                else
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">Sau</span>
+                    </li>
+                }
+            </ul>
+        </nav>
+    </div>
+}

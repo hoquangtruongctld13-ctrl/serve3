@@ -1,0 +1,416 @@
+@page
+@model SubPhim.Server.Pages.Admin.VipTranslation.ExternalApiKeysModel
+@{
+    ViewData["Title"] = "Quản lý External API Keys";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i>@Model.SuccessMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>@Model.ErrorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1><i class="bi bi-key me-2"></i>@ViewData["Title"]</h1>
+        <p class="text-muted">Quản lý API keys cho khách hàng bên ngoài sử dụng dịch vụ VIP Translation</p>
+    </div>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createKeyModal">
+        <i class="bi bi-plus-circle me-2"></i>Tạo API Key mới
+    </button>
+</div>
+
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-4" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="keys-tab" data-bs-toggle="tab" data-bs-target="#keys" type="button">
+            <i class="bi bi-key me-2"></i>API Keys (@Model.ApiKeys.Count)
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="usage-tab" data-bs-toggle="tab" data-bs-target="#usage" type="button">
+            <i class="bi bi-graph-up me-2"></i>Lịch sử sử dụng
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button">
+            <i class="bi bi-gear me-2"></i>Cài đặt hệ thống
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content">
+    <!-- API Keys Tab -->
+    <div class="tab-pane fade show active" id="keys" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Key ID</th>
+                                <th>Tên hiển thị</th>
+                                <th>Gán cho</th>
+                                <th>Credit</th>
+                                <th>RPM</th>
+                                <th>Ngày tạo</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.ApiKeys.Any())
+                            {
+                                @foreach (var key in Model.ApiKeys)
+                                {
+                                    <tr>
+                                        <td><code>@key.KeyPrefix...@key.KeySuffix</code></td>
+                                        <td>@(key.DisplayName ?? "-")</td>
+                                        <td>@(key.AssignedTo ?? "-")</td>
+                                        <td>
+                                            <span class="badge @(key.CreditBalance > 1000 ? "bg-success" : key.CreditBalance > 0 ? "bg-warning" : "bg-danger")">
+                                                @key.CreditBalance.ToString("N0")
+                                            </span>
+                                        </td>
+                                        <td>@key.RpmLimit</td>
+                                        <td>@key.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                        <td>
+                                            @if (key.IsEnabled)
+                                            {
+                                                <span class="badge bg-success">✅ Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">⛔ Disabled</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary" 
+                                                        onclick="viewApiKey(@key.Id)">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-success" 
+                                                        onclick="addCredits(@key.Id)">
+                                                    <i class="bi bi-cash-coin"></i>
+                                                </button>
+                                                @if (key.IsEnabled)
+                                                {
+                                                    <form method="post" asp-page-handler="DisableKey" asp-route-id="@key.Id" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <button type="submit" class="btn btn-outline-warning" 
+                                                                onclick="return confirm('Vô hiệu hóa API key này?')">
+                                                            <i class="bi bi-slash-circle"></i>
+                                                        </button>
+                                                    </form>
+                                                }
+                                                else
+                                                {
+                                                    <form method="post" asp-page-handler="EnableKey" asp-route-id="@key.Id" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <button type="submit" class="btn btn-outline-success" 
+                                                                onclick="return confirm('Kích hoạt API key này?')">
+                                                            <i class="bi bi-check-circle"></i>
+                                                        </button>
+                                                    </form>
+                                                }
+                                                <form method="post" asp-page-handler="DeleteKey" asp-route-id="@key.Id" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-danger" 
+                                                            onclick="return confirm('Xóa vĩnh viễn API key này? Hành động này không thể hoàn tác!')">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                        Chưa có API key nào. Nhấn "Tạo API Key mới" để bắt đầu.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Usage History Tab -->
+    <div class="tab-pane fade" id="usage" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Lịch sử sử dụng</h5>
+                <p class="text-muted">Chức năng này đang được phát triển. Sẽ hiển thị lịch sử sử dụng chi tiết của tất cả API keys.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div class="tab-pane fade" id="settings" role="tabpanel">
+        <div class="card">
+            <div class="card-header"><strong>⚙️ Cài đặt External API</strong></div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="UpdateSettings">
+                    @Html.AntiForgeryToken()
+                    
+                    <h6 class="mb-3"><i class="bi bi-cash-stack me-2"></i>Quy đổi Credit</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label asp-for="Settings.CreditsPerCharacter" class="form-label">Credit/Ký tự</label>
+                            <input asp-for="Settings.CreditsPerCharacter" class="form-control" type="number" min="1" />
+                            <small class="form-text text-muted">Số credit tính cho 1 ký tự output</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Settings.VndPerCredit" class="form-label">VND/Credit</label>
+                            <input asp-for="Settings.VndPerCredit" class="form-control" type="number" step="0.01" min="0.01" />
+                            <small class="form-text text-muted">Giá VND cho 1 credit</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Ví dụ quy đổi</label>
+                            <div class="p-2 bg-light rounded">
+                                <span id="conversionExample">1,000 ký tự = 5,000 credits = 50,000 VND</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="mb-3"><i class="bi bi-speedometer me-2"></i>Mặc định cho API Key mới</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label asp-for="Settings.DefaultRpm" class="form-label">RPM mặc định</label>
+                            <input asp-for="Settings.DefaultRpm" class="form-control" type="number" min="1" />
+                            <small class="form-text text-muted">Requests per minute cho API key mới</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Settings.DefaultInitialCredits" class="form-label">Credit khởi tạo</label>
+                            <input asp-for="Settings.DefaultInitialCredits" class="form-control" type="number" min="0" />
+                            <small class="form-text text-muted">Số credit ban đầu khi tạo API key mới</small>
+                        </div>
+                    </div>
+
+                    <h6 class="mb-3"><i class="bi bi-calculator me-2"></i>Máy tính quy đổi</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nhập số ký tự</label>
+                            <input type="number" id="charInput" class="form-control" placeholder="10000" />
+                            <small class="form-text text-muted" id="charResult">→ ? credits → ? VND</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nhập số tiền VND</label>
+                            <input type="number" id="vndInput" class="form-control" placeholder="1000000" />
+                            <small class="form-text text-muted" id="vndResult">→ ? credits → ? ký tự</small>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-2"></i>Lưu cài đặt
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create API Key Modal -->
+<div class="modal fade" id="createKeyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="CreateKey">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Tạo External API Key mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tên hiển thị</label>
+                        <input type="text" name="DisplayName" class="form-control" placeholder="VD: Client ABC" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Gán cho</label>
+                        <input type="text" name="AssignedTo" class="form-control" placeholder="VD: Công ty XYZ" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="Email" class="form-control" placeholder="client@example.com" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea name="Notes" class="form-control" rows="2" placeholder="Ghi chú nội bộ"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">RPM Limit</label>
+                            <input type="number" name="RpmLimit" class="form-control" value="@Model.Settings.DefaultRpm" min="1" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Credit khởi tạo</label>
+                            <input type="number" name="InitialCredits" class="form-control" value="@Model.Settings.DefaultInitialCredits" min="0" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-key me-2"></i>Tạo API Key
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- API Key Created Success Modal -->
+@if (!string.IsNullOrEmpty(Model.NewApiKey))
+{
+    <div class="modal fade" id="keyCreatedModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="bi bi-check-circle me-2"></i>API Key đã được tạo thành công!</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-4">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>QUAN TRỌNG:</strong> Sao chép API key này ngay bây giờ. Bạn sẽ KHÔNG THỂ xem lại key đầy đủ sau khi đóng dialog này!
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><strong>🔑 API Key:</strong></label>
+                        <div class="input-group">
+                            <input type="text" id="newApiKeyInput" class="form-control font-monospace" value="@Model.NewApiKey" readonly />
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div id="copySuccess" class="alert alert-success d-none">
+                        <i class="bi bi-check-circle me-2"></i>API key đã được copy vào clipboard!
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                        <i class="bi bi-check-lg me-2"></i>Đã sao chép
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Credits Modal -->
+<div class="modal fade" id="addCreditsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="AddCredits" id="addCreditsForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="ApiKeyId" id="addCreditsApiKeyId" />
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Nạp Credit</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Số lượng Credit</label>
+                        <input type="number" name="Amount" class="form-control" min="1" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mô tả</label>
+                        <input type="text" name="Description" class="form-control" placeholder="VD: Nạp credit tháng 12" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-plus-circle me-2"></i>Nạp Credit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Show new API key modal if key was created
+        @if (!string.IsNullOrEmpty(Model.NewApiKey))
+        {
+            <text>
+            document.addEventListener('DOMContentLoaded', function() {
+                var modal = new bootstrap.Modal(document.getElementById('keyCreatedModal'));
+                modal.show();
+            });
+            </text>
+        }
+
+        function copyApiKey() {
+            var input = document.getElementById('newApiKeyInput');
+            input.select();
+            document.execCommand('copy');
+            document.getElementById('copySuccess').classList.remove('d-none');
+        }
+
+        function addCredits(apiKeyId) {
+            document.getElementById('addCreditsApiKeyId').value = apiKeyId;
+            var modal = new bootstrap.Modal(document.getElementById('addCreditsModal'));
+            modal.show();
+        }
+
+        function viewApiKey(apiKeyId) {
+            // Navigate to detail page (to be implemented)
+            window.location.href = `/Admin/VipTranslation/ExternalApiKeyDetail?id=${apiKeyId}`;
+        }
+
+        // Calculator functionality
+        document.getElementById('charInput')?.addEventListener('input', function(e) {
+            var chars = parseInt(e.target.value) || 0;
+            var creditsPerChar = parseInt(document.querySelector('[name="Settings.CreditsPerCharacter"]').value) || 5;
+            var vndPerCredit = parseFloat(document.querySelector('[name="Settings.VndPerCredit"]').value) || 10;
+            var credits = chars * creditsPerChar;
+            var vnd = credits * vndPerCredit;
+            document.getElementById('charResult').textContent = `→ ${credits.toLocaleString()} credits → ${vnd.toLocaleString()} VND`;
+        });
+
+        document.getElementById('vndInput')?.addEventListener('input', function(e) {
+            var vnd = parseInt(e.target.value) || 0;
+            var creditsPerChar = parseInt(document.querySelector('[name="Settings.CreditsPerCharacter"]').value) || 5;
+            var vndPerCredit = parseFloat(document.querySelector('[name="Settings.VndPerCredit"]').value) || 10;
+            var credits = vnd / vndPerCredit;
+            var chars = credits / creditsPerChar;
+            document.getElementById('vndResult').textContent = `→ ${credits.toLocaleString()} credits → ${Math.floor(chars).toLocaleString()} ký tự`;
+        });
+
+        // Update conversion example
+        function updateConversionExample() {
+            var creditsPerChar = parseInt(document.querySelector('[name="Settings.CreditsPerCharacter"]').value) || 5;
+            var vndPerCredit = parseFloat(document.querySelector('[name="Settings.VndPerCredit"]').value) || 10;
+            var chars = 1000;
+            var credits = chars * creditsPerChar;
+            var vnd = credits * vndPerCredit;
+            document.getElementById('conversionExample').textContent = 
+                `${chars.toLocaleString()} ký tự = ${credits.toLocaleString()} credits = ${vnd.toLocaleString()} VND`;
+        }
+
+        document.querySelector('[name="Settings.CreditsPerCharacter"]')?.addEventListener('input', updateConversionExample);
+        document.querySelector('[name="Settings.VndPerCredit"]')?.addEventListener('input', updateConversionExample);
+    </script>
+}

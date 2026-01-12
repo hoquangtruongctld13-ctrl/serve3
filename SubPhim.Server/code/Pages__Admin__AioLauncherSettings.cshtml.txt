@@ -1,0 +1,243 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.AioLauncherSettingsModel
+@{
+    ViewData["Title"] = "Quản lý Dịch thuật AIOLauncher";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">Cấu hình các thông số, prompt và API keys cho dịch vụ dịch thuật trên server.</p>
+<hr />
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-lg-7">
+        <form method="post" asp-page-handler="SaveSettings">
+            <div class="card mb-4">
+                <div class="card-header fw-bold">Cài đặt chung</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.DefaultModelName" class="form-label"></label>
+                            <input asp-for="Settings.DefaultModelName" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.Temperature" class="form-label"></label>
+                            <input asp-for="Settings.Temperature" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.MaxOutputTokens" class="form-label"></label>
+                            <input type="number" asp-for="Settings.MaxOutputTokens" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.RpmPerKey" class="form-label"></label>
+                            <input type="number" asp-for="Settings.RpmPerKey" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.RpdPerKey" class="form-label"></label>
+                            <input type="number" asp-for="Settings.RpdPerKey" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.RpmPerProxy" class="form-label"></label>
+                            <input type="number" asp-for="Settings.RpmPerProxy" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.RpdPerProxy" class="form-label"></label>
+                            <input type="number" asp-for="Settings.RpdPerProxy" class="form-control" />
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" asp-for="Settings.EnableThinkingBudget">
+                                <label class="form-check-label" asp-for="Settings.EnableThinkingBudget"></label>
+                            </div>
+                            <input type="number" asp-for="Settings.ThinkingBudget" class="form-control mt-2" placeholder="Giá trị Thinking Budget..." />
+                        </div>
+                    </div>
+                    <hr />
+                    <h6 class="text-muted">Cấu hình Retry & Delay</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.MaxApiRetries" class="form-label"></label>
+                            <input type="number" asp-for="Settings.MaxApiRetries" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.RetryApiDelayMs" class="form-label"></label>
+                            <input type="number" asp-for="Settings.RetryApiDelayMs" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.DelayBetweenFilesMs" class="form-label"></label>
+                            <input type="number" asp-for="Settings.DelayBetweenFilesMs" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.DelayBetweenChunksMs" class="form-label"></label>
+                            <input type="number" asp-for="Settings.DelayBetweenChunksMs" class="form-control" />
+                        </div>
+                    </div>
+                    <hr />
+                    <h6 class="text-muted">Cấu hình Chia nhỏ (Chunking)</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.DirectSendThreshold" class="form-label"></label>
+                            <input type="number" asp-for="Settings.DirectSendThreshold" class="form-control" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Settings.ChunkSize" class="form-label"></label>
+                            <input type="number" asp-for="Settings.ChunkSize" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Lưu Cài Đặt Chung</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- QUẢN LÝ PROMPT THEO THỂ LOẠI -->
+        <div class="card mb-4">
+            <div class="card-header fw-bold">Quản lý Prompt theo Thể loại</div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="AddGenre" class="mb-4 p-3 border rounded">
+                    <h5>Thêm thể loại mới</h5>
+                    <div class="mb-3">
+                        <label asp-for="NewGenre.GenreName" class="form-label"></label>
+                        <input asp-for="NewGenre.GenreName" class="form-control" />
+                        <span asp-validation-for="NewGenre.GenreName" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="NewGenre.SystemInstruction" class="form-label"></label>
+                        <textarea asp-for="NewGenre.SystemInstruction" class="form-control" rows="5"></textarea>
+                        <span asp-validation-for="NewGenre.SystemInstruction" class="text-danger"></span>
+                    </div>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-plus-circle"></i> Thêm Thể Loại</button>
+                </form>
+
+                <h5>Danh sách thể loại hiện có</h5>
+                @if (Model.Genres.Any())
+                {
+                    <div class="accordion" id="genreAccordion">
+                        @foreach (var genre in Model.Genres)
+                        {
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-@genre.Id">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-@genre.Id">
+                                        @genre.GenreName
+                                    </button>
+                                </h2>
+                                <div id="collapse-@genre.Id" class="accordion-collapse collapse" data-bs-parent="#genreAccordion">
+                                    <div class="accordion-body">
+                                        <pre class="bg-light p-2 rounded"><code>@genre.SystemInstruction</code></pre>
+                                        <form method="post" asp-page-handler="DeleteGenre" asp-route-id="@genre.Id" onsubmit="return confirm('Bạn có chắc muốn xóa thể loại này?');">
+                                            <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Xóa</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">Chưa có thể loại nào.</p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- CỘT PHẢI: QUẢN LÝ API KEY -->
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header fw-bold">Quản lý API Keys</div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="AddApiKeys" class="mb-4">
+                    <div class="mb-3">
+                        <label asp-for="NewApiKeys.ApiKeys" class="form-label">Thêm API Key (mỗi key một dòng)</label>
+                        <textarea asp-for="NewApiKeys.ApiKeys" class="form-control" rows="4"></textarea>
+                        <span asp-validation-for="NewApiKeys.ApiKeys" class="text-danger"></span>
+                    </div>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-key"></i> Thêm Keys</button>
+                </form>
+
+                <h5>Danh sách API Keys</h5>
+
+                <!-- >> BẮT ĐẦU FORM XỬ LÝ HÀNG LOẠT << -->
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" asp-page-handler="DeleteSelected" onclick="return confirm('Bạn có chắc muốn XÓA các key đã chọn?');">
+                            <i class="bi bi-trash"></i> Xóa mục đã chọn
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" asp-page-handler="ToggleSelected" onclick="return confirm('Bạn có chắc muốn BẬT/TẮT các key đã chọn?');">
+                            <i class="bi bi-toggles"></i> Bật/Tắt mục đã chọn
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 5%;"><input class="form-check-input" type="checkbox" id="selectAllKeys"></th>
+                                    <th>Key (ẩn)</th>
+                                    <th class="text-center">Request/Ngày</th>
+                                    <th>Trạng thái</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var key in Model.ApiKeys)
+                                {
+                                    <tr>
+                                        <td><input class="form-check-input apiKeyCheckbox" type="checkbox" name="selectedKeyIds" value="@key.Id"></td>
+                                        <td><code>@key.MaskedKey</code></td>
+                                        <td class="text-center">@key.RequestsToday / @Model.Settings.RpdPerKey</td>
+                                        <td>
+                                            @if (key.IsEnabled)
+                                            {
+                                                <span class="badge bg-success">Đang Bật</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary" title="@key.DisabledReason">Đã Tắt</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="submit" class="btn @(key.IsEnabled ? "btn-outline-secondary" : "btn-outline-success")" asp-page-handler="ToggleApiKey" asp-route-id="@key.Id">
+                                                    @(key.IsEnabled ? "Tắt" : "Bật")
+                                                </button>
+                                                <button type="submit" class="btn btn-outline-danger" asp-page-handler="DeleteApiKey" asp-route-id="@key.Id" onclick="return confirm('Xóa API key này?');">Xóa</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+                <!-- << KẾT THÚC FORM XỬ LÝ HÀNG LOẠT << -->
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const selectAllCheckbox = document.getElementById('selectAllKeys');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('click', function () {
+                    const checkboxes = document.querySelectorAll('.apiKeyCheckbox');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.checked = selectAllCheckbox.checked;
+                    });
+                });
+            }
+        });
+    </script>
+}

@@ -1,0 +1,93 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.TtsModelSettingsModel
+@{
+    ViewData["Title"] = "Quản lý Cấu hình Model TTS";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">Quản lý các giới hạn mặc định (RPM, RPD) cho các loại model TTS.</p>
+<hr />
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">Thêm Cấu hình Model Mới</div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="Add">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label asp-for="InputModel.Provider" class="form-label"></label>
+                        @* SỬA LỖI: Dùng select list thủ công vì enum có [Flags] *@
+                        <select asp-for="InputModel.Provider" asp-items="Html.GetEnumSelectList<SubPhim.Server.Data.TtsProvider>()" class="form-select"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="InputModel.Identifier" class="form-label"></label>
+                        <input asp-for="InputModel.Identifier" class="form-control" placeholder="Ví dụ: Flash, Pro, ElevenLabs" />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="InputModel.ModelName" class="form-label"></label>
+                        <input asp-for="InputModel.ModelName" class="form-control" placeholder="Ví dụ: gemini-2.5-flash-preview-tts" />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="InputModel.MaxRequestsPerDay" class="form-label"></label>
+                        <input type="number" asp-for="InputModel.MaxRequestsPerDay" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="InputModel.MaxRequestsPerMinute" class="form-label"></label>
+                        <input type="number" asp-for="InputModel.MaxRequestsPerMinute" class="form-control" />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Thêm Cấu hình</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">Danh sách Cấu hình Model</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th>Identifier</th>
+                                <th>Model Name</th>
+                                <th>RPD</th>
+                                <th>RPM</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var setting in Model.Settings)
+                            {
+                                <tr>
+                                    <td>@setting.Provider</td>
+                                    <td>@setting.Identifier</td>
+                                    <td><code>@setting.ModelName</code></td>
+                                    <td>@setting.MaxRequestsPerDay</td>
+                                    <td>@setting.MaxRequestsPerMinute</td>
+                                    <td>
+                                        <form method="post" asp-page-handler="Delete" asp-route-id="@setting.Id" onsubmit="return confirm('Xóa cấu hình này?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

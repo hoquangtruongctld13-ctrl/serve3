@@ -1,0 +1,448 @@
+@page
+@model SubPhim.Server.Pages.Admin.SubtitleApi.IndexModel
+@{
+    ViewData["Title"] = "Quản lý Dịch Phụ Đề Phân Tán";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @Model.SuccessMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @Model.ErrorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<h1><i class="bi bi-translate me-2"></i>@ViewData["Title"]</h1>
+<p class="text-muted">Quản lý hệ thống dịch phụ đề phân tán với nhiều server trên fly.io</p>
+<hr />
+
+<div class="row">
+    <!-- CÀI ĐẶT CHUNG -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <strong><i class="bi bi-gear me-2"></i>Cài đặt chung</strong>
+            </div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="UpdateSettings">
+                    @Html.AntiForgeryToken()
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.LinesPerServer" class="form-label">Số dòng/Server</label>
+                            <input asp-for="Settings.LinesPerServer" class="form-control" />
+                            <small class="text-muted">Mặc định: 120 dòng cho mỗi server dịch</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.BatchSizePerServer" class="form-label">Số dòng/Batch (Server dịch)</label>
+                            <input asp-for="Settings.BatchSizePerServer" class="form-control" />
+                            <small class="text-muted">Theo API docs: mặc định 40 dòng/request</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.ApiKeysPerServer" class="form-label">Số API Key/Server</label>
+                            <input asp-for="Settings.ApiKeysPerServer" class="form-control" />
+                            <small class="text-muted">Số key gửi kèm cho mỗi server</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.MergeBatchThreshold" class="form-label">Ngưỡng gộp batch cuối</label>
+                            <input asp-for="Settings.MergeBatchThreshold" class="form-control" />
+                            <small class="text-muted">Nếu batch cuối ≤ X dòng thì gộp vào trước</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.ServerTimeoutSeconds" class="form-label">Timeout (giây)</label>
+                            <input asp-for="Settings.ServerTimeoutSeconds" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.MaxServerRetries" class="form-label">Số lần retry</label>
+                            <input asp-for="Settings.MaxServerRetries" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.DelayBetweenServerBatchesMs" class="form-label">Delay giữa batch (ms)</label>
+                            <input asp-for="Settings.DelayBetweenServerBatchesMs" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.ApiKeyCooldownMinutes" class="form-label">Cooldown khi 429 (phút)</label>
+                            <input asp-for="Settings.ApiKeyCooldownMinutes" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.DefaultModel" class="form-label">Model mặc định</label>
+                            <select asp-for="Settings.DefaultModel" class="form-select">
+                                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                                <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.Temperature" class="form-label">Temperature</label>
+                            <input type="number" step="0.1" asp-for="Settings.Temperature" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="Settings.ThinkingBudget" class="form-label">Thinking Budget</label>
+                            <input asp-for="Settings.ThinkingBudget" class="form-control" />
+                            <small class="text-muted">0 = tắt thinking</small>
+                        </div>
+                        <div class="col-md-9 mb-3">
+                            <label asp-for="Settings.MainServerUrl" class="form-label"></label>
+                            <input type="url" asp-for="Settings.MainServerUrl" class="form-control" placeholder="https://your-main-server.com" />
+                            <small class="text-muted">URL đầy đủ (bao gồm https://) để server dịch gửi callback về. <strong>Rất quan trọng!</strong></small>
+                        </div>
+                        <div class="col-md-3 mb-3 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" asp-for="Settings.EnableCallback">
+                                <label class="form-check-label" asp-for="Settings.EnableCallback">Bật Callback</label>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Lưu Cài Đặt</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- QUẢN LÝ API KEYS -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-success h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-key me-2"></i>Bể API Key (@Model.ApiKeys.Count keys)</h5>
+            </div>
+            <div class="card-body">
+                <!-- Thêm API Key -->
+                <div class="card mb-3">
+                    <div class="card-header"><strong>Thêm API Key</strong></div>
+                    <div class="card-body">
+                        <form method="post" asp-page-handler="AddApiKeys">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-2">
+                                <label class="form-label small">API Key (mỗi key một dòng)</label>
+                                <textarea name="apiKeysInput" class="form-control" rows="3" placeholder="Dán các Gemini API key vào đây..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-circle me-1"></i>Thêm Key</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Thống kê -->
+                <div class="alert alert-info py-2 mb-3">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <strong class="text-success">@Model.ApiKeys.Count(k => k.KeyData.IsEnabled && k.KeyData.CooldownUntil == null)</strong>
+                            <br><small>Sẵn sàng</small>
+                        </div>
+                        <div class="col-4">
+                            <strong class="text-warning">@Model.ApiKeys.Count(k => k.KeyData.CooldownUntil != null && k.KeyData.CooldownUntil > DateTime.UtcNow)</strong>
+                            <br><small>Đang CD</small>
+                        </div>
+                        <div class="col-4">
+                            <strong class="text-danger">@Model.ApiKeys.Count(k => !k.KeyData.IsEnabled)</strong>
+                            <br><small>Đã tắt</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách Key -->
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <button type="submit" asp-page-handler="DeleteSelectedKeys" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa các key đã chọn?');">
+                            <i class="bi bi-trash"></i> Xóa
+                        </button>
+                        <button type="submit" asp-page-handler="DisableSelectedKeys" class="btn btn-sm btn-outline-warning" onclick="return confirm('Tắt các key đã chọn?');">
+                            <i class="bi bi-power"></i> Tắt
+                        </button>
+                        <button type="submit" asp-page-handler="EnableSelectedKeys" class="btn btn-sm btn-outline-success" onclick="return confirm('Bật các key đã chọn?');">
+                            <i class="bi bi-check-circle"></i> Bật
+                        </button>
+                        <button type="submit" asp-page-handler="ClearCooldown" class="btn btn-sm btn-outline-info" onclick="return confirm('Xóa cooldown các key đã chọn?');">
+                            <i class="bi bi-arrow-clockwise"></i> Xóa CD
+                        </button>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-striped table-hover table-sm mb-0">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th><input class="form-check-input" type="checkbox" id="selectAllKeys"></th>
+                                    <th>API Key</th>
+                                    <th class="text-center">OK/Fail</th>
+                                    <th class="text-center">Trạng thái</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.ApiKeys.Any())
+                                {
+                                    @foreach (var keyVm in Model.ApiKeys)
+                                    {
+                                        var key = keyVm.KeyData;
+                                        var statusClass = key.IsEnabled
+                                            ? (key.CooldownUntil != null && key.CooldownUntil > DateTime.UtcNow ? "table-warning" : "")
+                                            : "table-secondary";
+                                        <tr class="@statusClass">
+                                            <td><input class="form-check-input chk-key" type="checkbox" name="selectedKeyIds" value="@key.Id"></td>
+                                            <td><code class="small">@keyVm.MaskedKey</code></td>
+                                            <td class="text-center">
+                                                <span class="text-success">@key.TotalSuccessRequests</span> /
+                                                <span class="text-danger">@key.TotalFailedRequests</span>
+                                            </td>
+                                            <td class="text-center">
+                                                @if (!key.IsEnabled)
+                                                {
+                                                    <span class="badge bg-secondary">OFF</span>
+                                                }
+                                                else if (key.CooldownUntil != null && key.CooldownUntil > DateTime.UtcNow)
+                                                {
+                                                    <span class="badge bg-warning text-dark" title="@key.CooldownUntil?.ToString("HH:mm:ss")">CD</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">ON</span>
+                                                }
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="ToggleKey" asp-route-id="@key.Id" class="btn btn-sm @(key.IsEnabled ? "btn-outline-secondary" : "btn-outline-success")">
+                                                    @(key.IsEnabled ? "Tắt" : "Bật")
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td colspan="5" class="text-center text-muted py-3">Chưa có API Key nào</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUẢN LÝ SERVERS -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-info h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-hdd-network me-2"></i>Server Dịch (@Model.Servers.Count servers)</h5>
+            </div>
+            <div class="card-body">
+                <!-- Thêm Server -->
+                <div class="card mb-3">
+                    <div class="card-header"><strong>Thêm Server</strong></div>
+                    <div class="card-body">
+                        <form method="post" asp-page-handler="AddServer">
+                            @Html.AntiForgeryToken()
+                            <div class="row">
+                                <div class="col-md-8 mb-2">
+                                    <label class="form-label small">URL Server (https://xxx.fly.dev)</label>
+                                    <input type="url" name="serverUrl" class="form-control" placeholder="https://subtitle-server.fly.dev" required />
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <label class="form-label small">RPM</label>
+                                    <input type="number" name="rpmLimit" class="form-control" value="5" min="1" max="100" />
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Tên hiển thị (tùy chọn)</label>
+                                <input type="text" name="displayName" class="form-control" placeholder="Server 1" />
+                            </div>
+                            <button type="submit" class="btn btn-info w-100"><i class="bi bi-plus-circle me-1"></i>Thêm Server</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Thống kê -->
+                <div class="alert alert-primary py-2 mb-3">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <strong class="text-success">@Model.Servers.Count(s => s.IsEnabled && !s.IsBusy)</strong>
+                            <br><small>Sẵn sàng</small>
+                        </div>
+                        <div class="col-4">
+                            <strong class="text-warning">@Model.Servers.Count(s => s.IsBusy)</strong>
+                            <br><small>Đang bận</small>
+                        </div>
+                        <div class="col-4">
+                            <strong class="text-danger">@Model.Servers.Count(s => !s.IsEnabled)</strong>
+                            <br><small>Đã tắt</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách Server -->
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <button type="submit" asp-page-handler="DeleteSelectedServers" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa các server đã chọn?');">
+                            <i class="bi bi-trash"></i> Xóa
+                        </button>
+                        <button type="submit" asp-page-handler="TestSelectedServers" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-lightning"></i> Test
+                        </button>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-striped table-hover table-sm mb-0">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th><input class="form-check-input" type="checkbox" id="selectAllServers"></th>
+                                    <th>Server</th>
+                                    <th class="text-center">RPM</th>
+                                    <th class="text-center">Sử dụng</th>
+                                    <th class="text-center">Trạng thái</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Servers.Any())
+                                {
+                                    @foreach (var server in Model.Servers)
+                                    {
+                                        var statusClass = server.IsEnabled
+                                            ? (server.IsBusy ? "table-warning" : "")
+                                            : "table-secondary";
+                                        <tr class="@statusClass">
+                                            <td><input class="form-check-input chk-server" type="checkbox" name="selectedServerIds" value="@server.Id"></td>
+                                            <td>
+                                                <strong>@(server.DisplayName ?? $"Server #{server.Id}")</strong>
+                                                <br><small class="text-muted">@server.ServerUrl</small>
+                                            </td>
+                                            <td class="text-center">@server.RpmLimit</td>
+                                            <td class="text-center">
+                                                <span class="text-success">@server.UsageCount</span> /
+                                                <span class="text-danger">@server.FailureCount</span>
+                                            </td>
+                                            <td class="text-center">
+                                                @if (!server.IsEnabled)
+                                                {
+                                                    <span class="badge bg-secondary">OFF</span>
+                                                }
+                                                else if (server.IsBusy)
+                                                {
+                                                    <span class="badge bg-warning text-dark">Bận</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">OK</span>
+                                                }
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="ToggleServer" asp-route-id="@server.Id" class="btn btn-sm @(server.IsEnabled ? "btn-outline-secondary" : "btn-outline-success")">
+                                                    @(server.IsEnabled ? "Tắt" : "Bật")
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td colspan="6" class="text-center text-muted py-3">Chưa có Server nào</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- THỐNG KÊ JOB -->
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-list-task me-2"></i>Jobs Gần Đây</strong>
+                <form method="post" asp-page-handler="CleanupJobs" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa tất cả jobs đã hoàn thành?');">
+                        <i class="bi bi-trash"></i> Dọn dẹp
+                    </button>
+                </form>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Session ID</th>
+                                <th class="text-center">Trạng thái</th>
+                                <th class="text-center">Tiến độ</th>
+                                <th class="text-center">Dòng</th>
+                                <th>Tạo lúc</th>
+                                <th>Hoàn thành</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.RecentJobs.Any())
+                            {
+                                @foreach (var job in Model.RecentJobs)
+                                {
+                                    var statusBadge = job.Status switch
+                                    {
+                                        SubPhim.Server.Data.SubtitleJobStatus.Pending => "bg-secondary",
+                                        SubPhim.Server.Data.SubtitleJobStatus.Distributing => "bg-info",
+                                        SubPhim.Server.Data.SubtitleJobStatus.Processing => "bg-primary",
+                                        SubPhim.Server.Data.SubtitleJobStatus.Aggregating => "bg-warning text-dark",
+                                        SubPhim.Server.Data.SubtitleJobStatus.Completed => "bg-success",
+                                        SubPhim.Server.Data.SubtitleJobStatus.Failed => "bg-danger",
+                                        SubPhim.Server.Data.SubtitleJobStatus.PartialCompleted => "bg-warning text-dark",
+                                        _ => "bg-secondary"
+                                    };
+                                    <tr>
+                                        <td><code class="small">@job.SessionId</code></td>
+                                        <td class="text-center"><span class="badge @statusBadge">@job.Status</span></td>
+                                        <td class="text-center">
+                                            <div class="progress" style="height: 20px; min-width: 100px;">
+                                                <div class="progress-bar" role="progressbar" style="width: @job.Progress%">@job.Progress.ToString("0.0")%</div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">@job.CompletedLines / @job.TotalLines</td>
+                                        <td>@job.CreatedAt.ToString("dd/MM HH:mm")</td>
+                                        <td>@(job.CompletedAt?.ToString("dd/MM HH:mm") ?? "-")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="6" class="text-center text-muted py-3">Chưa có job nào</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Select all checkboxes
+            function setupSelectAll(selectAllId, checkboxClass) {
+                const selectAll = document.getElementById(selectAllId);
+                if (!selectAll) return;
+                selectAll.addEventListener('click', function () {
+                    document.querySelectorAll('.' + checkboxClass).forEach(cb => {
+                        cb.checked = selectAll.checked;
+                    });
+                });
+            }
+            setupSelectAll('selectAllKeys', 'chk-key');
+            setupSelectAll('selectAllServers', 'chk-server');
+        });
+    </script>
+}

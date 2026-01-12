@@ -1,0 +1,87 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.Banning.IndexModel
+@{
+    ViewData["Title"] = "Quản lý Cấm (Ban)";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+<h1>@ViewData["Title"]</h1>
+<p>Quản lý các thiết bị (HWID), IP hoặc tài khoản bị cấm truy cập hệ thống.</p>
+<hr />
+
+<!-- Hiển thị thông báo -->
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<!-- Form thêm lệnh cấm mới -->
+<div class="card mb-4">
+    <div class="card-header">Thêm Lệnh Cấm Mới</div>
+    <div class="card-body">
+        <form method="post" asp-page-handler="AddBan">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="NewBan.Hwid" class="form-label">HWID (Bắt buộc)</label>
+                    <input asp-for="NewBan.Hwid" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="NewBan.LastKnownIp" class="form-label">IP (Nếu có)</label>
+                    <input asp-for="NewBan.LastKnownIp" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="NewBan.AssociatedUsername" class="form-label">Username (Nếu có)</label>
+                    <input asp-for="NewBan.AssociatedUsername" class="form-control" />
+                </div>
+                <div class="col-md-12">
+                    <label asp-for="NewBan.BanReason" class="form-label">Lý do cấm</label>
+                    <input asp-for="NewBan.BanReason" class="form-control" required />
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-shield-slash-fill"></i> Thêm Lệnh Cấm</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- Bảng danh sách đã cấm -->
+<div class="card">
+    <div class="card-header">Danh sách đang bị cấm</div>
+    <div class="card-body">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>HWID</th>
+                    <th>IP Cuối</th>
+                    <th>Tài khoản liên quan</th>
+                    <th>Lý do</th>
+                    <th>Ngày cấm</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.BannedList)
+                {
+                    <tr>
+                        <td><code>@item.Hwid</code></td>
+                        <td><code>@item.LastKnownIp</code></td>
+                        <td>@item.AssociatedUsername</td>
+                        <td>@item.BanReason</td>
+                        <td>@item.BannedAt.ToVietNamTimeString()</td>
+                        <td>
+                            <form method="post" asp-page-handler="DeleteBan" asp-route-id="@item.Id" onsubmit="return confirm('Bạn có chắc muốn gỡ bỏ lệnh cấm này?');">
+                                <button type="submit" class="btn btn-sm btn-success">Mở khóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

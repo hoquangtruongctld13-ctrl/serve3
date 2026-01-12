@@ -1,0 +1,87 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.BackupRestoreModel
+@{
+    ViewData["Title"] = "Backup & Restore Toàn Diện";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">
+    Sao lưu và khôi phục toàn bộ trạng thái quan trọng của server, bao gồm người dùng, cấu hình, và các API keys.
+</p>
+<hr />
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+
+<div class="row g-4">
+    <!-- CỘT BACKUP -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-box-arrow-down me-2"></i>
+                <strong>SAO LƯU DỮ LIỆU TOÀN BỘ SERVER</strong>
+            </div>
+            <div class="card-body">
+                <p>
+                    Nhấn nút bên dưới để tải về một file <strong>.json</strong> duy nhất chứa toàn bộ dữ liệu quan trọng của server:
+                </p>
+                <ul>
+                    <li>Tất cả tài khoản người dùng và thiết bị.</li>
+                    <li>Toàn bộ API keys (Local, TTS, AIO...).</li>
+                    <li>Toàn bộ cấu hình hệ thống (giới hạn gói, prompts, models...).</li>
+                </ul>
+                <p class="fw-bold">
+                    Hãy lưu trữ file này ở một nơi cực kỳ an toàn. Đây là chìa khóa để di chuyển hoặc khôi phục server của bạn.
+                </p>
+            </div>
+            <div class="card-footer bg-transparent border-top-0 pb-3">
+                <a asp-page-handler="DownloadBackup" class="btn btn-primary btn-lg w-100">
+                    <i class="bi bi-download me-2"></i>Tải File Backup Toàn Diện
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- CỘT RESTORE -->
+    <div class="col-md-6">
+        <div class="card h-100 border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>KHÔI PHỤC DỮ LIỆU TỪ FILE</strong>
+            </div>
+            <div class="card-body">
+                <p class="text-danger fw-bold">
+                    CẢNH BÁO CỰC KỲ QUAN TRỌNG:
+                </p>
+                <p>
+                    Chức năng này sẽ <strong>XÓA SẠCH</strong> toàn bộ dữ liệu người dùng và cấu hình hiện tại, sau đó <strong>THAY THẾ HOÀN TOÀN</strong> bằng dữ liệu từ file backup.
+                    Hành động này không thể hoàn tác.
+                </p>
+                <p>
+                    Chỉ sử dụng chức năng này khi bạn muốn di chuyển sang một server mới hoặc muốn khôi phục lại trạng thái cũ một cách tuyệt đối.
+                </p>
+                <form method="post" enctype="multipart/form-data" onsubmit="return confirm('CẢNH BÁO CUỐI CÙNG:\n\nBẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ DỮ LIỆU HIỆN TẠI VÀ THAY THẾ BẰNG FILE BACKUP NÀY KHÔNG?');">
+                    <div class="mb-3">
+                        <label for="backupFile" class="form-label">Chọn file backup toàn diện (.json):</label>
+                        <input class="form-control" type="file" name="backupFile" id="backupFile" accept=".json" required>
+                    </div>
+                    <button type="submit" asp-page-handler="Import" class="btn btn-danger btn-lg w-100">
+                        <i class="bi bi-upload me-2"></i>Bắt đầu Khôi Phục
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info mt-4">
+    <strong>Mẹo an toàn:</strong> Trước khi thực hiện khôi phục, bạn nên sao chép thủ công file cơ sở dữ liệu (ví dụ: `subphim.db`) của server hiện tại để có một phương án dự phòng cuối cùng.
+</div>

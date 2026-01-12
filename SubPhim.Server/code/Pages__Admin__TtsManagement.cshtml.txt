@@ -1,0 +1,163 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.TtsManagementModel
+@using Microsoft.AspNetCore.Html
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Quản lý API Text-to-Speech";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">Quản lý các API key cho dịch vụ Text-to-Speech của Gemini và ElevenLabs.</p>
+<hr />
+
+<div class="row">
+    <!-- === KHU VỰC GEMINI PRO === -->
+    <div class="col-lg-12 mb-4">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="bi bi-gem me-2"></i>Gemini PRO TTS</h4>
+                <small>Giới hạn được quản lý động trong trang "Cấu hình Model TTS".</small>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Thêm API Key Gemini Pro</h6>
+                        <form method="post" asp-page-handler="AddGeminiProKeys">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-2">
+                                <textarea name="apiKeyInput.ApiKeys" class="form-control" rows="3" placeholder="Dán các API key Gemini Pro vào đây (mỗi key một dòng)..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Thêm Key Gemini Pro</button>
+                        </form>
+                    </div>
+                    <div class="col-md-8">
+                        <h6>Danh sách Key Gemini Pro</h6>
+                        @_TtsKeyTable(Html, Model.GeminiProKeys)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === KHU VỰC GEMINI FLASH === -->
+    <div class="col-lg-12 mb-4">
+        <div class="card border-info">
+            <div class="card-header bg-info text-dark">
+                <h4><i class="bi bi-lightning-charge-fill me-2"></i>Gemini FLASH TTS</h4>
+                <small>Giới hạn được quản lý động trong trang "Cấu hình Model TTS".</small>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Thêm API Key Gemini Flash</h6>
+                        <form method="post" asp-page-handler="AddGeminiFlashKeys">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-2">
+                                <textarea name="apiKeyInput.ApiKeys" class="form-control" rows="3" placeholder="Dán các API key Gemini Flash vào đây (mỗi key một dòng)..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-info w-100">Thêm Key Gemini Flash</button>
+                        </form>
+                    </div>
+                    <div class="col-md-8">
+                        <h6>Danh sách Key Gemini Flash</h6>
+                        @_TtsKeyTable(Html, Model.GeminiFlashKeys)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === KHU VỰC ELEVENLABS === -->
+    <div class="col-lg-12 mb-4">
+        <div class="card border-dark">
+            <div class="card-header bg-dark text-white">
+                <h4><i class="bi bi-soundwave me-2"></i>ElevenLabs TTS</h4>
+                <small>Không có giới hạn RPM/RPD. Key sẽ tự động bị tắt nếu hết hạn hoặc sai.</small>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Thêm API Key ElevenLabs</h6>
+                        <form method="post" asp-page-handler="AddElevenLabsKeys">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-2">
+                                <textarea name="apiKeyInput.ApiKeys" class="form-control" rows="3" placeholder="Dán các API key ElevenLabs vào đây (mỗi key một dòng)..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-dark w-100">Thêm Key ElevenLabs</button>
+                        </form>
+                    </div>
+                    <div class="col-md-8">
+                        <h6>Danh sách Key ElevenLabs</h6>
+                        @_TtsKeyTable(Html, Model.ElevenLabsKeys)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    public static IHtmlContent _TtsKeyTable(IHtmlHelper html, List<SubPhim.Server.Pages.Admin.TtsManagementModel.ApiKeyViewModel> keys)
+    {
+        var writer = new System.IO.StringWriter();
+        if (!keys.Any())
+        {
+            writer.WriteLine("<p class='text-center text-muted p-3'>Chưa có API key nào trong nhóm này.</p>");
+            return new HtmlString(writer.ToString());
+        }
+
+        writer.WriteLine("<div class='table-responsive' style='max-height: 300px; overflow-y: auto;'>");
+        writer.WriteLine("<table class='table table-striped table-hover table-sm mb-0'>");
+        writer.WriteLine("<thead><tr><th>API Key (ẩn)</th><th>Model</th><th class='text-center'>Request/Ngày</th><th class='text-center'>Trạng thái</th><th>Lý do</th><th class='text-center'>Thao tác</th></tr></thead>");
+        writer.WriteLine("<tbody>");
+
+        foreach (var keyViewModel in keys)
+        {
+            var key = keyViewModel.KeyData;
+            var decrypted = keyViewModel.DecryptedApiKey;
+            var maskedKey = decrypted.Length > 8 ? $"{decrypted.Substring(0, 4)}...{decrypted.Substring(decrypted.Length - 4)}" : decrypted;
+            var requests = $"{key.RequestsToday}";
+            var statusClass = key.IsEnabled ? "btn-success" : "btn-secondary";
+            var statusText = key.IsEnabled ? "ON" : "OFF";
+
+            writer.WriteLine("<tr>");
+            writer.WriteLine($"<td><code>{maskedKey}</code></td>");
+            // SỬA LỖI: Sử dụng thuộc tính ModelName đã được chuẩn hóa
+            writer.WriteLine($"<td><small>{key.ModelName}</small></td>");
+            writer.WriteLine($"<td class='text-center'>{requests}</td>");
+
+            // Form cho nút ON/OFF
+            writer.WriteLine("<td class='text-center'>");
+            writer.WriteLine($"<form method='post' action='/Admin/TtsManagement?handler=ToggleEnabled&id={key.Id}' class='d-inline'>");
+            html.AntiForgeryToken().WriteTo(writer, System.Text.Encodings.Web.HtmlEncoder.Default);
+            writer.WriteLine($"<button type='submit' class='btn btn-sm {statusClass}'>{statusText}</button>");
+            writer.WriteLine("</form>");
+            writer.WriteLine("</td>");
+
+            writer.WriteLine($"<td><small class='text-muted'>{key.DisabledReason}</small></td>");
+
+            // Form cho nút Xóa
+            writer.WriteLine("<td class='text-center'>");
+            writer.WriteLine($"<form method='post' action='/Admin/TtsManagement?handler=DeleteKey&id={key.Id}' onsubmit='return confirm(\"Xóa key này?\");' class='d-inline'>");
+            html.AntiForgeryToken().WriteTo(writer, System.Text.Encodings.Web.HtmlEncoder.Default);
+            writer.WriteLine("<button type='submit' class='btn btn-sm btn-danger'>Xóa</button>");
+            writer.WriteLine("</form>");
+            writer.WriteLine("</td>");
+
+            writer.WriteLine("</tr>");
+        }
+
+        writer.WriteLine("</tbody></table></div>");
+        return new HtmlString(writer.ToString());
+    }
+}

@@ -1,0 +1,60 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.UpdateManagementModel
+@{
+    ViewData["Title"] = "Quản lý Cập nhật Ứng dụng";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">
+    Cấu hình phiên bản và thông tin cập nhật sẽ được gửi đến ứng dụng client.
+</p>
+<hr />
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                Thông tin Phiên bản Mới
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <input type="hidden" asp-for="UpdateInfo.Id" />
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="UpdateInfo.LatestVersion" class="form-label"></label>
+                        <input asp-for="UpdateInfo.LatestVersion" class="form-control" placeholder="Ví dụ: 1.2.3" />
+                        <span asp-validation-for="UpdateInfo.LatestVersion" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="UpdateInfo.DownloadUrl" class="form-label"></label>
+                        <input asp-for="UpdateInfo.DownloadUrl" class="form-control" placeholder="Dán link tải file cài đặt/zip..." />
+                        <span asp-validation-for="UpdateInfo.DownloadUrl" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="UpdateInfo.ReleaseNotes" class="form-label"></label>
+                        <textarea asp-for="UpdateInfo.ReleaseNotes" class="form-control" rows="8" placeholder="Mỗi thay đổi trên một dòng để client dễ hiển thị..."></textarea>
+                        <span asp-validation-for="UpdateInfo.ReleaseNotes" class="text-danger"></span>
+                    </div>
+
+                    <div class="d-flex align-items-center">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save-fill me-2"></i>Lưu Thay Đổi
+                        </button>
+                        <span class="ms-3 text-muted">
+                            Lần cuối cập nhật: @Model.UpdateInfo.LastUpdated.ToVietNamTimeString()
+                        </span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

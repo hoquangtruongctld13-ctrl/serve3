@@ -1,0 +1,219 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - SubPhim Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-bg: #20222a;
+            --sidebar-link-color: #ccc;
+            --sidebar-link-hover-bg: #333;
+            --sidebar-link-active-bg: #0d6efd;
+            --content-bg: #f8f9fa;
+        }
+
+        body {
+            background-color: var(--content-bg);
+            overflow-x: hidden;
+        }
+
+        .wrapper {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+            align-items: stretch;
+        }
+
+        #sidebar {
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            color: #fff;
+            transition: all 0.3s;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        #sidebar.collapsed {
+            margin-left: calc(-1 * var(--sidebar-width));
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: #1a1c23;
+            text-align: center;
+        }
+
+        .sidebar-header h3 {
+            color: #fff;
+            margin-bottom: 0;
+            font-size: 1.5rem;
+        }
+
+        #sidebar .nav-item .nav-link {
+            padding: 12px 20px;
+            font-size: 1rem;
+            color: var(--sidebar-link-color);
+            border-left: 4px solid transparent;
+        }
+
+        #sidebar .nav-item .nav-link:hover {
+            background: var(--sidebar-link-hover-bg);
+            color: #fff;
+        }
+
+        #sidebar .nav-item .nav-link .bi {
+            margin-right: 10px;
+        }
+
+        #content {
+            width: 100%;
+            padding: 20px;
+            transition: all 0.3s;
+            margin-left: var(--sidebar-width);
+        }
+
+        .navbar-toggler-btn {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1001;
+            background-color: rgba(0,0,0,0.5);
+            border: 1px solid #fff;
+        }
+
+        /* Responsive */
+        @@media (max-width: 992px) {
+            #sidebar {
+                margin-left: calc(-1 * var(--sidebar-width));
+            }
+            #sidebar.collapsed {
+                 margin-left: 0;
+            }
+            #content {
+                margin-left: 0;
+                width: 100%;
+            }
+            .overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.7);
+                z-index: 999;
+                display: none;
+            }
+            .overlay.active {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="wrapper">
+        <!-- Sidebar -->
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="bi bi-gear-wide-connected"></i> SubPhim Panel</h3>
+            </div>
+
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/Users"><i class="bi bi-people-fill"></i> Quản lý User</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/TierManagement"><i class="bi bi-layers-fill"></i> Quản lý Nhóm</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/NewUserSettings"><i class="bi bi-person-plus"></i> Cài đặt Đăng ký mới</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/AioLauncherSettings"><i class="bi bi-robot"></i> Quản lý Dịch Thuật</a>
+
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/AioLauncherTts"><i class="bi bi-megaphone-fill"></i> Quản lý AIOLauncher TTS</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/GoogleTtsModels"><i class="bi bi-gear-fill"></i> Cấu hình Google TTS Models</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/LocalApi"><i class="bi bi-cpu-fill"></i> Quản lý Local API</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/VipTranslation"><i class="bi bi-gem"></i> Dịch Phụ đề VIP</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/SubtitleApi"><i class="bi bi-translate"></i> Dịch Phụ đề Phân tán</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/LocalApi/Proxy"><i class="bi bi-router"></i> Quản lý Proxy</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/TtsManagement"><i class="bi bi-soundwave"></i> Quản lý TTS API</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/SaOcr"><i class="bi bi-image-alt"></i> Quản lý SA OCR</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/TtsModelSettings"><i class="bi bi-mic-fill-gear"></i> Cấu hình Model TTS</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/Banning"><i class="bi bi-shield-slash-fill"></i> Quản lý Cấm</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/BackupRestore"><i class="bi bi-cloud-arrow-down-fill"></i> Backup & Restore</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Admin/UpdateManagement"><i class="bi bi-cloud-arrow-up-fill"></i> Quản lý Cập nhật</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-warning" href="/Admin/ServerControl"><i class="bi bi-power"></i> Quản lý Server</a>
+                </li>
+            </ul>
+        </nav>
+        <main id="content">
+            <button class="btn btn-primary d-lg-none navbar-toggler-btn" type="button" id="sidebarCollapse">
+                <i class="bi bi-list"></i>
+            </button>
+
+            <div class="container-fluid">
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+    <div class="overlay d-lg-none"></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarCollapseBtn = document.getElementById('sidebarCollapse');
+            const overlay = document.querySelector('.overlay');
+
+            function toggleSidebar() {
+                sidebar.classList.toggle('collapsed');
+                overlay.classList.toggle('active');
+            }
+
+            if (sidebarCollapseBtn) {
+                sidebarCollapseBtn.addEventListener('click', toggleSidebar);
+            }
+
+            if (overlay) {
+                overlay.addEventListener('click', toggleSidebar);
+            }
+        });
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

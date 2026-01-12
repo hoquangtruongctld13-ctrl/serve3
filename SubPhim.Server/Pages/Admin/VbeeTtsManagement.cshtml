@@ -1,0 +1,428 @@
+@page
+@model SubPhim.Server.Pages.Admin.VbeeTtsManagementModel
+@{
+    ViewData["Title"] = "Quản lý Vbee TTS";
+    Layout = "_AdminLayout";
+}
+
+<style>
+    .voice-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        color: white;
+        margin-bottom: 1rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .voice-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+    .voice-card.disabled {
+        background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        opacity: 0.7;
+    }
+    .settings-panel {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .quota-input-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .quota-input-group input {
+        flex: 1;
+    }
+    .gender-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .gender-male { background: #3b82f6; }
+    .gender-female { background: #ec4899; }
+    .tab-content { padding-top: 1.5rem; }
+    .voice-form-row {
+        display: grid;
+        grid-template-columns: 1fr 2fr 1fr 1fr auto;
+        gap: 0.75rem;
+        align-items: center;
+        padding: 0.75rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+</style>
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>@Model.SuccessMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>@Model.ErrorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-microphone-alt text-primary me-2"></i>Quản lý Vbee TTS</h2>
+</div>
+
+<ul class="nav nav-tabs" id="vbeeTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="voices-tab" data-bs-toggle="tab" data-bs-target="#voices" type="button">
+            <i class="fas fa-user-friends me-1"></i>Voices
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button">
+            <i class="fas fa-cog me-1"></i>Cài đặt API
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="sessions-tab" data-bs-toggle="tab" data-bs-target="#sessions" type="button">
+            <i class="fas fa-stream me-1"></i>Sessions đang chạy
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="vbeeTabsContent">
+    <!-- Voices Tab -->
+    <div class="tab-pane fade show active" id="voices" role="tabpanel">
+        <!-- Thống kê -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0">@Model.Voices.Count</h3>
+                        <small>Tổng số Voices</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0">@Model.Voices.Count(v => v.IsEnabled)</h3>
+                        <small>Đang hoạt động</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-secondary text-white">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0">@Model.Voices.Count(v => !v.IsEnabled)</h3>
+                        <small>Đã tắt</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form thêm voice -->
+        <div class="settings-panel">
+            <h5 class="mb-3"><i class="bi bi-plus-circle text-success me-2"></i>Thêm Voice mới</h5>
+            <form method="post" asp-page-handler="AddVoice">
+                @Html.AntiForgeryToken()
+                <div class="voice-form-row">
+                    <input type="text" class="form-control" name="voiceCode" placeholder="Voice Code (vi_xxx)" required />
+                    <input type="text" class="form-control" name="displayName" placeholder="Tên hiển thị" required />
+                    <select class="form-select" name="gender">
+                        <option value="Female">Nữ</option>
+                        <option value="Male">Nam</option>
+                    </select>
+                    <input type="text" class="form-control" name="languageCode" placeholder="vi-VN" value="vi-VN" />
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-plus"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Import hàng loạt -->
+        <div class="settings-panel">
+            <h5 class="mb-3"><i class="bi bi-upload text-info me-2"></i>Import Voices hàng loạt</h5>
+            <form method="post" asp-page-handler="ImportVoices">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <label class="form-label">Nhập JSON danh sách voices (mỗi dòng một voice hoặc mảng JSON)</label>
+                    <textarea class="form-control font-monospace" name="voicesJson" rows="6" 
+                              placeholder='[{"Code": "vi_abc", "Name": "Tên Voice", "Gender": "Female", "Language": "vi-VN"}]
+hoặc
+vi_voice1, Tên Voice 1, Female, vi-VN
+vi_voice2, Tên Voice 2, Male, vi-VN'></textarea>
+                    <small class="text-muted">Hỗ trợ JSON array hoặc CSV (code, name, gender, language mỗi dòng)</small>
+                </div>
+                <button type="submit" class="btn btn-info">
+                    <i class="bi bi-upload me-1"></i>Import Voices
+                </button>
+            </form>
+        </div>
+
+        <!-- Danh sách voices -->
+        <div class="row">
+            @foreach (var voice in Model.Voices)
+            {
+                <div class="col-md-4">
+                    <div class="voice-card @(voice.IsEnabled ? "" : "disabled")">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h5 class="mb-1">@voice.DisplayName</h5>
+                                <small class="opacity-75"><code>@voice.VoiceCode</code></small>
+                            </div>
+                            <span class="gender-badge @(voice.Gender == "Male" ? "gender-male" : "gender-female")">
+                                @(voice.Gender == "Male" ? "Nam" : "Nữ")
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <span class="badge bg-light text-dark">@voice.LanguageCode</span>
+                            <div class="btn-group btn-group-sm">
+                                <!-- Edit Button -->
+                                <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editVoiceModal"
+                                        onclick="openEditModal(@voice.Id, '@voice.VoiceCode', '@voice.DisplayName', '@voice.Gender', '@voice.LanguageCode')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <form method="post" asp-page-handler="ToggleVoice" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="voiceId" value="@voice.Id" />
+                                    <button type="submit" class="btn btn-sm @(voice.IsEnabled ? "btn-warning" : "btn-success")">
+                                        <i class="bi @(voice.IsEnabled ? "bi-pause" : "bi-play")"></i>
+                                    </button>
+                                </form>
+                                <form method="post" asp-page-handler="DeleteVoice" class="d-inline" 
+                                      onsubmit="return confirm('Xác nhận xóa voice này?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="voiceId" value="@voice.Id" />
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (!Model.Voices.Any())
+            {
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-mic-mute display-1 text-muted"></i>
+                    <p class="text-muted mt-3">Chưa có voice nào. Thêm voice mới hoặc import từ danh sách.</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div class="tab-pane fade" id="settings" role="tabpanel">
+        <div class="settings-panel">
+            <form method="post" asp-page-handler="SaveSettings">
+                @Html.AntiForgeryToken()
+                
+                <h5 class="mb-3"><i class="fas fa-link text-primary me-2"></i>Cấu hình API</h5>
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <label class="form-label">API URL (sẽ được mã hóa)</label>
+                        <input type="text" class="form-control" name="apiUrl" 
+                               value="@Model.Settings?.DecryptedApiUrl" 
+                               placeholder="http://tts.ivoi.io:8001" required />
+                        <small class="text-muted">URL này sẽ được mã hóa và không lộ ra client</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Endpoint Path</label>
+                        <input type="text" class="form-control" name="synthesizeEndpoint" 
+                               value="@(Model.Settings?.SynthesizeEndpoint ?? "/synthesize")" />
+                    </div>
+                </div>
+
+                <h5 class="mb-3"><i class="fas fa-clock text-info me-2"></i>Timeout & Retry</h5>
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">Request Timeout (giây)</label>
+                        <input type="number" class="form-control" name="requestTimeoutSeconds" 
+                               value="@(Model.Settings?.RequestTimeoutSeconds ?? 60)" min="10" max="300" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Max Retries</label>
+                        <input type="number" class="form-control" name="maxRetries" 
+                               value="@(Model.Settings?.MaxRetries ?? 3)" min="1" max="10" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Retry Delay (ms)</label>
+                        <input type="number" class="form-control" name="retryDelayMs" 
+                               value="@(Model.Settings?.RetryDelayMs ?? 2000)" min="500" max="10000" />
+                    </div>
+                </div>
+
+                <h5 class="mb-3"><i class="fas fa-text-width text-warning me-2"></i>Text Processing</h5>
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">Max Chunk Size (ký tự)</label>
+                        <input type="number" class="form-control" name="maxChunkSize" 
+                               value="@(Model.Settings?.MaxChunkSize ?? 1000)" min="100" max="100000" />
+                    </div>
+                </div>
+
+                <h5 class="mb-3"><i class="fas fa-pause-circle text-secondary me-2"></i>Pause Settings (mặc định)</h5>
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Dấu chấm (giây)</label>
+                        <input type="number" class="form-control" name="pausePeriod" 
+                               value="@(Model.Settings?.PausePeriod ?? 0.35m)" step="0.001" min="0" max="5" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Dấu phẩy (giây)</label>
+                        <input type="number" class="form-control" name="pauseComma" 
+                               value="@(Model.Settings?.PauseComma ?? 0.025m)" step="0.001" min="0" max="5" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Dấu chấm phẩy (giây)</label>
+                        <input type="number" class="form-control" name="pauseSemicolon" 
+                               value="@(Model.Settings?.PauseSemicolon ?? 0.3m)" step="0.001" min="0" max="5" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Xuống dòng (giây)</label>
+                        <input type="number" class="form-control" name="pauseNewline" 
+                               value="@(Model.Settings?.PauseNewline ?? 0.6m)" step="0.001" min="0" max="5" />
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-2"></i>Lưu cài đặt
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sessions Tab -->
+    <div class="tab-pane fade" id="sessions" role="tabpanel">
+        <div class="settings-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-activity text-info me-2"></i>Sessions đang hoạt động</h5>
+                <form method="post" asp-page-handler="CleanupSessions">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="bi bi-trash3 me-1"></i>Dọn dẹp sessions cũ
+                    </button>
+                </form>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Session ID</th>
+                            <th>User</th>
+                            <th>Voice</th>
+                            <th>Ký tự</th>
+                            <th>Trạng thái</th>
+                            <th>Tạo lúc</th>
+                            <th>Heartbeat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var session in Model.ActiveSessions)
+                        {
+                            var statusClass = session.Status switch
+                            {
+                                SubPhim.Server.Data.VbeeTtsSessionStatus.Processing => "bg-success",
+                                SubPhim.Server.Data.VbeeTtsSessionStatus.Pending => "bg-info",
+                                SubPhim.Server.Data.VbeeTtsSessionStatus.Disconnected => "bg-warning",
+                                _ => "bg-secondary"
+                            };
+                            <tr>
+                                <td><code class="small">@session.SessionId.Substring(0, 8)...</code></td>
+                                <td>@session.User?.Username</td>
+                                <td>@session.VoiceCode</td>
+                                <td>
+                                    <span class="text-success">@session.CharactersProcessed</span> / 
+                                    <span class="text-muted">@session.TotalCharactersRequested</span>
+                                </td>
+                                <td><span class="badge @statusClass">@session.Status</span></td>
+                                <td>@session.CreatedAt.ToString("HH:mm:ss")</td>
+                                <td>
+                                    @{
+                                        var diff = DateTime.UtcNow - session.LastHeartbeatAt;
+                                        var heartbeatClass = diff.TotalMinutes < 1 ? "text-success" : 
+                                                            diff.TotalMinutes < 5 ? "text-warning" : "text-danger";
+                                    }
+                                    <span class="@heartbeatClass">@diff.TotalSeconds.ToString("F0")s ago</span>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.ActiveSessions.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-info-circle me-2"></i>Không có session nào đang hoạt động
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Voice Modal -->
+<div class="modal fade" id="editVoiceModal" tabindex="-1" aria-labelledby="editVoiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="UpdateVoice">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editVoiceModalLabel"><i class="bi bi-pencil me-2"></i>Sửa Voice</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="voiceId" id="editVoiceId" />
+                    <div class="mb-3">
+                        <label class="form-label">Voice Code</label>
+                        <input type="text" class="form-control" name="voiceCode" id="editVoiceCode" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tên hiển thị</label>
+                        <input type="text" class="form-control" name="displayName" id="editDisplayName" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Giới tính</label>
+                        <select class="form-select" name="gender" id="editGender">
+                            <option value="Female">Nữ</option>
+                            <option value="Male">Nam</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ngôn ngữ</label>
+                        <input type="text" class="form-control" name="languageCode" id="editLanguageCode" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check me-1"></i>Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function openEditModal(id, code, name, gender, language) {
+            document.getElementById('editVoiceId').value = id;
+            document.getElementById('editVoiceCode').value = code;
+            document.getElementById('editDisplayName').value = name;
+            document.getElementById('editGender').value = gender;
+            document.getElementById('editLanguageCode').value = language;
+        }
+    </script>
+}
+

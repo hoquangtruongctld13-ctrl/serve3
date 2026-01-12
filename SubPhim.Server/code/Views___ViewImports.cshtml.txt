@@ -1,0 +1,3 @@
+﻿@using SubPhim.Server
+@using SubPhim.Server.Models
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers

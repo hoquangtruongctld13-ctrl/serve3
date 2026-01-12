@@ -1,0 +1,168 @@
+﻿@* VỊ TRÍ: Pages/Admin/TierManagement.cshtml *@
+@page
+@model SubPhim.Server.Pages.Admin.TierManagementModel
+@{
+    ViewData["Title"] = "Quản lý Nhóm User (Tier)";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+    var allFeatures = Enum.GetValues<SubPhim.Server.Data.GrantedFeatures>().Where(f => f != SubPhim.Server.Data.GrantedFeatures.None);
+    var allApis = Enum.GetValues<SubPhim.Server.Data.AllowedApis>().Where(a => a != SubPhim.Server.Data.AllowedApis.None);
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">
+    Cấu hình quyền và giới hạn mặc định cho từng nhóm người dùng.
+    <br />
+    <strong>Lưu ý:</strong> Thay đổi tại đây và nhấn nút "Áp dụng" sẽ <strong>ghi đè vĩnh viễn</strong> lên tất cả người dùng hiện có trong nhóm đó.
+</p>
+<hr />
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<form method="post">
+    <div class="accordion" id="tierAccordion">
+        @foreach (var tierConfig in Model.Configs)
+        {
+            var tier = tierConfig.Key;
+            var config = tierConfig.Value;
+            var collapseId = $"collapse-{tier}";
+            var headerId = $"header-{tier}";
+
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="@headerId">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId">
+                        <strong class="fs-5">Nhóm: @tier.ToString()</strong>
+                    </button>
+                </h2>
+                <div id="@collapseId" class="accordion-collapse collapse" aria-labelledby="@headerId" data-bs-parent="#tierAccordion">
+                    <div class="accordion-body">
+
+                        @if (tier == SubscriptionTier.Yearly)
+                        {
+                            <div class="alert alert-info mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="Configs[@tier].IsYearlyProSettings" 
+                                           id="isYearlyPro-@tier" @(config.IsYearlyProSettings ? "checked" : "")>
+                                    <label class="form-check-label fw-bold" for="isYearlyPro-@tier">
+                                        <i class="bi bi-star-fill text-warning me-2"></i>Cấu hình này cho Gói Năm PRO
+                                    </label>
+                                    <div class="form-text">
+                                        Bật tùy chọn này nếu đây là cấu hình cho gói năm Pro. Nếu không, đây sẽ là cấu hình cho gói năm thường.
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <h5><i class="bi bi-camera-video me-2"></i>Giới hạn xử lý Video</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Thời lượng video tối đa (phút)</label>
+                                <input type="number" name="Configs[@tier].VideoDurationMinutes" value="@config.VideoDurationMinutes" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số video xử lý / ngày</label>
+                                <input type="number" name="Configs[@tier].DailyVideoCount" value="@config.DailyVideoCount" class="form-control" />
+                                <div class="form-text">Nhập -1 để không giới hạn.</div>
+                            </div>
+                        </div>
+
+                        <h5 class="mt-4"><i class="bi bi-translate me-2"></i>Giới hạn dịch & TTS</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Số request dịch truyện / ngày</label>
+                                <input type="number" name="Configs[@tier].DailyTranslationRequests" value="@config.DailyTranslationRequests" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Giới hạn ký tự TTS</label>
+                                <input type="number" name="Configs[@tier].TtsCharacterLimit" value="@config.TtsCharacterLimit" class="form-control" />
+                                <div class="form-text">Gói Free reset hàng ngày, gói trả phí là tổng.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số dòng dịch SRT (API bên thứ 3) / ngày</label>
+                                <input type="number" name="Configs[@tier].DailySrtLineLimit" value="@config.DailySrtLineLimit" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số dòng dịch SRT (Local API) / ngày</label>
+                                <input type="number" name="Configs[@tier].DailyLocalSrtLimit" value="@config.DailyLocalSrtLimit" class="form-control" />
+                            </div>
+                        </div>
+
+                        <!-- === BẮT ĐẦU THÊM MỚI === -->
+                        <h5 class="mt-4"><i class="bi bi-robot me-2"></i>Giới hạn Dịch Văn Bản (AIO)</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Số ký tự AIO / ngày</label>
+                                <input type="number" name="Configs[@tier].AioCharacterLimit" value="@config.AioCharacterLimit" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số request AIO / phút (RPM)</label>
+                                <input type="number" name="Configs[@tier].AioRequestsPerMinute" value="@config.AioRequestsPerMinute" class="form-control" />
+                            </div>
+                        </div>
+                        
+                        <h5 class="mt-4"><i class="bi bi-gem me-2"></i>Giới hạn Dịch Phụ Đề VIP</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Số dòng dịch VIP SRT / ngày</label>
+                                <input type="number" name="Configs[@tier].DailyVipSrtLimit" value="@config.DailyVipSrtLimit" class="form-control" />
+                                <div class="form-text">
+                                    <strong>Mặc định:</strong> Free = 0, Monthly = 3000, Yearly = 15000 dòng/ngày. 
+                                    Reset vào 12:00 sáng giờ Việt Nam.
+                                </div>
+                            </div>
+                        </div>
+                        <!-- === KẾT THÚC THÊM MỚI === -->
+
+                        <h5 class="mt-4"><i class="bi bi-key me-2"></i>Quyền truy cập API</h5>
+                        <div class="row mb-3">
+                            @foreach (var api in allApis)
+                            {
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="Configs[@tier].AllowedApis" value="@api"
+                                               @(config.AllowedApis.HasFlag(api) ? "checked" : "")>
+                                        <label class="form-check-label">@api.ToString()</label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <h5 class="mt-4"><i class="bi bi-toggles2 me-2"></i>Quyền truy cập Tính năng</h5>
+                        <div class="row mb-4">
+                            @foreach (var feature in allFeatures)
+                            {
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="Configs[@tier].GrantedFeatures" value="@feature"
+                                               @(config.GrantedFeatures.HasFlag(feature) ? "checked" : "")>
+                                        <label class="form-check-label">@feature.ToString()</label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <hr />
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-warning" asp-page-handler="ApplyToAllUsers" asp-route-tier="@tier"
+                                    onclick="return confirm('CẢNH BÁO!\nHành động này sẽ GHI ĐÈ các giới hạn và quyền hạn hiện tại của TẤT CẢ người dùng thuộc nhóm [@tier].\n\nBạn có chắc chắn muốn tiếp tục?');">
+                                <i class="bi bi-people-fill me-2"></i>Áp dụng cho tất cả User '@tier'
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+    <div class="mt-4 d-grid">
+        <button type="submit" class="btn btn-primary btn-lg" asp-page-handler="SaveDefaults">
+            <i class="bi bi-save-fill me-2"></i>Lưu Cấu Hình Mặc Định (Cho User Mới & Áp dụng Tier)
+        </button>
+    </div>
+</form>

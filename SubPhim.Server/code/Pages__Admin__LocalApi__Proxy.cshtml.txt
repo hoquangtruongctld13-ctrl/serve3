@@ -1,0 +1,251 @@
+@page
+@model SubPhim.Server.Pages.Admin.LocalApi.ProxyModel
+@{
+    ViewData["Title"] = "Quản lý Proxy";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @Model.SuccessMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @Model.ErrorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1>@ViewData["Title"]</h1>
+        <p class="text-muted mb-0">Quản lý danh sách proxy để luân phiên khi gọi API Google, tránh giới hạn 429 Too Many Requests.</p>
+    </div>
+    <div>
+        <span class="badge bg-@(Model.ActiveProxyCount > 0 ? "success" : "warning") fs-6">
+            <i class="bi bi-router me-1"></i>@Model.ActiveProxyCount proxy đang hoạt động
+        </span>
+    </div>
+</div>
+<hr />
+
+<div class="row">
+    <!-- THÊM PROXY MỚI -->
+    <div class="col-lg-5 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Thêm Proxy Mới</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="AddProxies">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Danh sách Proxy (mỗi dòng một proxy)</label>
+                        <textarea name="proxyList" class="form-control font-monospace" rows="8" placeholder="Hỗ trợ các định dạng:
+socks5://host:port
+socks4://host:port
+http://host:port
+socks5://username:password@host:port
+host:port (mặc định là SOCKS5)
+
+Ví dụ:
+socks5://192.168.1.1:1080
+http://admin:pass123@proxy.example.com:8080
+127.0.0.1:9050"></textarea>
+                    </div>
+                    <div class="alert alert-info py-2 mb-3">
+                        <small>
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>Định dạng hỗ trợ:</strong><br/>
+                            • <code>socks5://host:port</code> - SOCKS5 proxy<br/>
+                            • <code>socks4://host:port</code> - SOCKS4 proxy<br/>
+                            • <code>http://host:port</code> - HTTP proxy<br/>
+                            • <code>type://user:pass@host:port</code> - Proxy với authentication<br/>
+                            • <code>host:port</code> - Mặc định là SOCKS5
+                        </small>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-plus-lg me-2"></i>Thêm Proxy
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- DANH SÁCH PROXY -->
+    <div class="col-lg-7 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Danh sách Proxy</h5>
+                <div>
+                    <form method="post" asp-page-handler="DeleteAllProxies" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bạn có chắc muốn XÓA TẤT CẢ proxy?');">
+                            <i class="bi bi-trash3 me-1"></i>Xóa tất cả
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2 p-2 border-bottom bg-light">
+                        <button type="submit" class="btn btn-sm btn-outline-danger me-2" asp-page-handler="DeleteSelectedProxies" onclick="return confirm('Bạn có chắc muốn XÓA các proxy đã chọn?');">
+                            <i class="bi bi-trash"></i> Xóa đã chọn
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-warning me-2" asp-page-handler="DisableSelectedProxies" onclick="return confirm('Bạn có chắc muốn TẮT các proxy đã chọn?');">
+                            <i class="bi bi-power"></i> Tắt đã chọn
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-success" asp-page-handler="EnableSelectedProxies" onclick="return confirm('Bạn có chắc muốn BẬT các proxy đã chọn?');">
+                            <i class="bi bi-check-circle"></i> Bật đã chọn
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-striped table-hover table-sm mb-0">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th class="text-center" style="width: 5%;"><input class="form-check-input" type="checkbox" id="selectAll"></th>
+                                    <th>Proxy</th>
+                                    <th class="text-center">Loại</th>
+                                    <th class="text-center">Sử dụng</th>
+                                    <th class="text-center">Lỗi</th>
+                                    <th class="text-center">Trạng thái</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Proxies.Any())
+                                {
+                                    @foreach (var proxy in Model.Proxies)
+                                    {
+                                        var typeBadgeClass = proxy.Type switch
+                                        {
+                                            SubPhim.Server.Data.ProxyType.Socks5 => "bg-primary",
+                                            SubPhim.Server.Data.ProxyType.Socks4 => "bg-info",
+                                            SubPhim.Server.Data.ProxyType.Http => "bg-secondary",
+                                            _ => "bg-dark"
+                                        };
+                                        <tr class="@(!proxy.IsEnabled ? "table-secondary" : "")">
+                                            <td class="text-center"><input class="form-check-input proxy-checkbox" type="checkbox" name="selectedProxyIds" value="@proxy.Id"></td>
+                                            <td>
+                                                <code class="@(!proxy.IsEnabled ? "text-muted" : "")">@proxy.Host:@proxy.Port</code>
+                                                @if (!string.IsNullOrEmpty(proxy.Username))
+                                                {
+                                                    <span class="badge bg-info ms-1" title="Có authentication">
+                                                        <i class="bi bi-key"></i>
+                                                    </span>
+                                                }
+                                                @if (!string.IsNullOrEmpty(proxy.LastFailureReason))
+                                                {
+                                                    <br/><small class="text-danger" title="@proxy.LastFailureReason">
+                                                        <i class="bi bi-exclamation-triangle"></i> @(proxy.LastFailureReason?.Length > 50 ? proxy.LastFailureReason.Substring(0, 50) + "..." : proxy.LastFailureReason)
+                                                    </small>
+                                                }
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge @typeBadgeClass">@proxy.Type</span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-success">@proxy.UsageCount</span>
+                                                @if (proxy.LastUsedAt.HasValue)
+                                                {
+                                                    <br/><small class="text-muted">@proxy.LastUsedAt.Value.ToString("dd/MM HH:mm")</small>
+                                                }
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge @(proxy.FailureCount > 0 ? "bg-danger" : "bg-secondary")">@proxy.FailureCount</span>
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="ToggleProxy" asp-route-id="@proxy.Id" class="btn btn-sm @(proxy.IsEnabled ? "btn-success" : "btn-secondary")">
+                                                    @(proxy.IsEnabled ? "ON" : "OFF")
+                                                </button>
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="ResetProxyStats" asp-route-id="@proxy.Id" class="btn btn-sm btn-outline-info" title="Reset thống kê">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                                <button type="submit" asp-page-handler="DeleteProxy" asp-route-id="@proxy.Id" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa proxy này?');" title="Xóa">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="7" class="text-center p-4">
+                                            <i class="bi bi-router text-muted fs-1 d-block mb-2"></i>
+                                            <span class="text-muted">Chưa có proxy nào. Thêm proxy để tránh lỗi 429 khi gọi API Google.</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Thông tin hướng dẫn -->
+<div class="card mt-3">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Hướng dẫn sử dụng Proxy</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6><i class="bi bi-question-circle text-primary me-2"></i>Tại sao cần Proxy?</h6>
+                <p class="small text-muted">
+                    Khi gọi API Google quá nhiều từ cùng một IP, Google sẽ trả về lỗi <strong>429 Too Many Requests</strong>. 
+                    Sử dụng proxy giúp phân tán các request qua nhiều IP khác nhau, tránh bị rate limit.
+                </p>
+            </div>
+            <div class="col-md-6">
+                <h6><i class="bi bi-gear text-primary me-2"></i>Cách hoạt động</h6>
+                <p class="small text-muted">
+                    Hệ thống sẽ tự động luân phiên (round-robin) qua danh sách proxy khi gửi request đến API Google.
+                    Nếu không có proxy nào được cấu hình, request sẽ được gửi trực tiếp.
+                </p>
+            </div>
+            <div class="col-md-6">
+                <h6><i class="bi bi-shield-check text-success me-2"></i>Tự động vô hiệu hóa</h6>
+                <p class="small text-muted mb-0">
+                    Proxy sẽ tự động bị tắt nếu gặp <strong>5 lỗi liên tiếp</strong>. 
+                    Bạn có thể reset thống kê và bật lại proxy thủ công.
+                </p>
+            </div>
+            <div class="col-md-6">
+                <h6><i class="bi bi-router text-info me-2"></i>Loại Proxy hỗ trợ</h6>
+                <ul class="small text-muted mb-0">
+                    <li><strong>SOCKS5</strong> - Khuyến nghị, hỗ trợ authentication và UDP</li>
+                    <li><strong>SOCKS4</strong> - Phiên bản cũ hơn, không hỗ trợ authentication</li>
+                    <li><strong>HTTP</strong> - Proxy HTTP thông thường</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('click', function () {
+                    const checkboxes = document.querySelectorAll('.proxy-checkbox');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.checked = selectAllCheckbox.checked;
+                    });
+                });
+            }
+        });
+    </script>
+}

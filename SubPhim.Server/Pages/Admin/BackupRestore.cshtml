@@ -1,0 +1,163 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.BackupRestoreModel
+@{
+    ViewData["Title"] = "Backup & Restore Toàn Diện";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">
+    Sao lưu và khôi phục toàn bộ trạng thái quan trọng của server, bao gồm người dùng, cấu hình, proxy latency, Vbee TTS, và các API keys.
+</p>
+<hr />
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<div class="row g-4">
+    <!-- CỘT AUTO BACKUP SETTINGS -->
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history me-2"></i><strong>CÀI ĐẶT AUTO BACKUP (GỬI EMAIL ĐỊNH KỲ)</strong></span>
+                @if (Model.BackupSettings?.AutoBackupEnabled == true)
+                {
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>ĐANG BẬT</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>TẮT</span>
+                }
+            </div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="UpdateSettings">
+                    @Html.AntiForgeryToken()
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label">Trạng thái</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="autoBackupEnabled" id="autoBackupEnabled"
+                                       @(Model.BackupSettings?.AutoBackupEnabled == true ? "checked" : "") style="width: 3em; height: 1.5em;">
+                                <label class="form-check-label" for="autoBackupEnabled">Bật Auto Backup</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="backupIntervalHours" class="form-label">Khoảng cách (giờ)</label>
+                            <input type="number" class="form-control" name="backupIntervalHours" id="backupIntervalHours"
+                                   value="@(Model.BackupSettings?.BackupIntervalHours ?? 12)" min="1" max="168">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="notificationEmail" class="form-label">Email nhận backup</label>
+                            <input type="email" class="form-control" name="notificationEmail" id="notificationEmail"
+                                   value="@(Model.BackupSettings?.NotificationEmail ?? "hoquangtruongctld4@gmail.com")"
+                                   placeholder="email@example.com">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-info w-100">
+                                <i class="bi bi-save me-1"></i>Lưu cài đặt
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-3">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar-check me-1"></i>
+                                Lần backup cuối: 
+                                <strong>@(Model.BackupSettings?.LastBackupUtc?.ToString("dd/MM/yyyy HH:mm") ?? "Chưa có")</strong>
+                            </small>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">
+                                <i class="bi bi-envelope me-1"></i>
+                                Lần gửi email cuối: 
+                                <strong>@(Model.BackupSettings?.LastEmailSentUtc?.ToString("dd/MM/yyyy HH:mm") ?? "Chưa có")</strong>
+                            </small>
+                        </div>
+                        @if (Model.NextBackupTime.HasValue)
+                        {
+                            <div class="col-md-3">
+                                <small class="text-info">
+                                    <i class="bi bi-clock me-1"></i>
+                                    Backup tiếp theo: <strong>@Model.NextBackupTime.Value.ToString("dd/MM/yyyy HH:mm") UTC</strong>
+                                </small>
+                            </div>
+                        }
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- CỘT BACKUP -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-box-arrow-down me-2"></i>
+                <strong>SAO LƯU DỮ LIỆU TOÀN BỘ SERVER</strong>
+            </div>
+            <div class="card-body">
+                <p>
+                    Nhấn nút bên dưới để tải về một file <strong>.json</strong> duy nhất chứa toàn bộ dữ liệu quan trọng của server:
+                </p>
+                <ul>
+                    <li>Tất cả tài khoản người dùng (bao gồm <span class="text-primary">Vbee quota</span>).</li>
+                    <li>Danh sách Proxy (<span class="text-success">bao gồm latency đã đo</span>).</li>
+                    <li>Toàn bộ API keys (Local, TTS, AIO, VIP...).</li>
+                    <li><span class="text-info">Vbee TTS settings</span>: API URL, voices, fake endpoints.</li>
+                    <li>Toàn bộ cấu hình hệ thống (giới hạn gói, prompts, models...).</li>
+                </ul>
+                <p class="fw-bold">
+                    Hãy lưu trữ file này ở một nơi cực kỳ an toàn. Đây là chìa khóa để di chuyển hoặc khôi phục server của bạn.
+                </p>
+            </div>
+            <div class="card-footer bg-transparent border-top-0 pb-3">
+                <a asp-page-handler="DownloadBackup" class="btn btn-primary btn-lg w-100">
+                    <i class="bi bi-download me-2"></i>Tải File Backup Toàn Diện
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- CỘT RESTORE -->
+    <div class="col-md-6">
+        <div class="card h-100 border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>KHÔI PHỤC DỮ LIỆU TỪ FILE</strong>
+            </div>
+            <div class="card-body">
+                <p class="text-danger fw-bold">
+                    CẢNH BÁO CỰC KỲ QUAN TRỌNG:
+                </p>
+                <p>
+                    Chức năng này sẽ <strong>XÓA SẠCH</strong> toàn bộ dữ liệu người dùng và cấu hình hiện tại, sau đó <strong>THAY THẾ HOÀN TOÀN</strong> bằng dữ liệu từ file backup.
+                    Hành động này không thể hoàn tác.
+                </p>
+                <p>
+                    Chỉ sử dụng chức năng này khi bạn muốn di chuyển sang một server mới hoặc muốn khôi phục lại trạng thái cũ một cách tuyệt đối.
+                </p>
+                <form method="post" enctype="multipart/form-data" onsubmit="return confirm('CẢNH BÁO CUỐI CÙNG:\n\nBẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ DỮ LIỆU HIỆN TẠI VÀ THAY THẾ BẰNG FILE BACKUP NÀY KHÔNG?');">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label for="backupFile" class="form-label">Chọn file backup toàn diện (.json):</label>
+                        <input class="form-control" type="file" name="backupFile" id="backupFile" accept=".json" required>
+                    </div>
+                    <button type="submit" asp-page-handler="Import" class="btn btn-danger btn-lg w-100">
+                        <i class="bi bi-upload me-2"></i>Bắt đầu Khôi Phục
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info mt-4">
+    <strong>Mẹo an toàn:</strong> Trước khi thực hiện khôi phục, bạn nên sao chép thủ công file cơ sở dữ liệu (ví dụ: `subphim.db`) của server hiện tại để có một phương án dự phòng cuối cùng.
+</div>

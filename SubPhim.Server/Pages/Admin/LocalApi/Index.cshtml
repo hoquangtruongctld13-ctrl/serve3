@@ -1,0 +1,330 @@
+﻿@page
+@model SubPhim.Server.Pages.Admin.LocalApi.IndexModel
+@{
+    ViewData["Title"] = "Quản lý API Key & Model (Dịch Local)";
+    Layout = "~/Pages/Shared/_AdminLayout.cshtml";
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger" role="alert">@TempData["ErrorMessage"]</div>
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="text-muted">Quản lý hai nhóm API riêng biệt: một cho người dùng trả phí (VIP) và một cho người dùng miễn phí (Free).</p>
+<hr />
+
+<div class="row">
+    <!-- CỘT CÀI ĐẶT CHUNG -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header"><strong>Cài đặt chung (Áp dụng cho tất cả Key)</strong></div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="UpdateSettings">
+                    @Html.AntiForgeryToken()
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.Rpm" class="form-label">Request/Phút (RPM)</label>
+                            <input asp-for="GlobalSettings.Rpm" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.BatchSize" class="form-label">Số dòng/Request (Batch Size)</label>
+                            <input asp-for="GlobalSettings.BatchSize" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.MaxRetries" class="form-label">Số lần thử lại nếu lỗi</label>
+                            <input asp-for="GlobalSettings.MaxRetries" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.RetryDelayMs" class="form-label">Delay giữa các lần thử lại (ms)</label>
+                            <input asp-for="GlobalSettings.RetryDelayMs" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.Temperature" class="form-label">Temperature (0-2)</label>
+                            <input type="number" step="0.1" asp-for="GlobalSettings.Temperature" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.MaxOutputTokens" class="form-label">Max Output Tokens</label>
+                            <input asp-for="GlobalSettings.MaxOutputTokens" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.DelayBetweenBatchesMs" class="form-label">Delay giữa các batch (ms)</label>
+                            <input asp-for="GlobalSettings.DelayBetweenBatchesMs" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.ThinkingBudget" class="form-label">IQ AI (Thinking Budget)</label>
+                            <div class="input-group">
+                                <div class="input-group-text">
+                                    <input class="form-check-input mt-0" type="checkbox" asp-for="GlobalSettings.EnableThinkingBudget">
+                                </div>
+                                <input asp-for="GlobalSettings.ThinkingBudget" class="form-control" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-3" />
+                    <h6 class="text-success mb-3"><i class="bi bi-router me-1"></i> Giới hạn tốc độ Proxy</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="GlobalSettings.RpmPerProxy" class="form-label">Request/Phút/Proxy (RPM)</label>
+                            <input asp-for="GlobalSettings.RpmPerProxy" class="form-control" />
+                            <small class="text-muted">Số request tối đa mỗi proxy có thể xử lý trong 1 phút</small>
+                        </div>
+                        <div class="col-md-8 mb-3 d-flex align-items-center">
+                            <div class="alert alert-success mb-0 py-2 w-100">
+                                <small>
+                                    <strong>Mặc định:</strong> 10 request/phút/proxy<br/>
+                                    <i class="bi bi-info-circle me-1"></i>Mỗi proxy chỉ nhận tối đa X request/phút. Nếu đạt giới hạn, hệ thống sẽ chuyển sang proxy khác.<br/>
+                                    <i class="bi bi-exclamation-triangle text-warning me-1"></i>Chỉ tính request khi kết nối thành công đến API Gemini, lỗi kết nối proxy không tính.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-info">Lưu Cài Đặt Chung</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- === KHU VỰC API TRẢ PHÍ (PAID) === -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-primary h-100">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="bi bi-gem me-2"></i>Quản lý API Trả Phí (VIP)</h4>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Thêm API Key Trả Phí</strong></div>
+                    <div class="card-body">
+                        <form method="post" asp-page-handler="CreatePaidKey">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-2">
+                                <label class="form-label small">API Key (mỗi key một dòng)</label>
+                                <textarea name="apiKeyInput.ApiKeys" class="form-control" rows="2" placeholder="Dán các API key VIP vào đây..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Thêm Key VIP</button>
+                        </form>
+                    </div>
+                </div>
+
+                <h5 class="mt-2">Danh sách Key Trả Phí</h5>
+                <!-- >> BẮT ĐẦU FORM CHO BẢNG KEY VIP << -->
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" asp-page-handler="DeleteSelectedKeys" onclick="return confirm('Bạn có chắc muốn XÓA các key đã chọn?');">
+                            <i class="bi bi-trash"></i> Xóa mục đã chọn
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-warning" asp-page-handler="DisableSelectedKeys" onclick="return confirm('Bạn có chắc muốn TẮT các key đã chọn?');">
+                            <i class="bi bi-power"></i> Tắt mục đã chọn
+                        </button>
+                    </div>
+
+                    <div class="table-responsive mb-4 flex-grow-1">
+                        <table class="table table-striped table-hover table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 5%;"><input class="form-check-input" type="checkbox" id="selectAllPaid"></th>
+                                    <th>API Key (ẩn)</th>
+                                    <th class="text-center">Tokens Đã Dùng</th>
+                                    <th class="text-center">Requests / Ngày</th>
+                                    <th class="text-center">Trạng thái</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.PaidApiKeys.Any())
+                                {
+                                    @foreach (var keyViewModel in Model.PaidApiKeys)
+                                    {
+                                        var key = keyViewModel.KeyData;
+                                        <tr>
+                                            <td class="text-center"><input class="form-check-input chk-paid" type="checkbox" name="selectedKeyIds" value="@key.Id"></td>
+                                            <td><code>@keyViewModel.DecryptedApiKey.Substring(0, Math.Min(keyViewModel.DecryptedApiKey.Length, 15))...</code></td>
+                                            <td class="text-center">@key.TotalTokensUsed.ToString("N0")</td>
+                                            <td class="text-center">@key.RequestsToday</td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="ToggleEnabled" asp-route-id="@key.Id" class="btn btn-sm @(key.IsEnabled ? "btn-success" : "btn-secondary")">@(key.IsEnabled ? "ON" : "OFF")</button>
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="DeleteKey" asp-route-id="@key.Id" onsubmit="return confirm('Xóa key này?');" class="btn btn-sm btn-danger">Xóa</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td colspan="6" class="text-center p-3">Chưa có API Key trả phí nào.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+                <!-- << KẾT THÚC FORM CHO BẢNG KEY VIP << -->
+
+
+                <h5 class="mt-auto">Quản lý Model Trả Phí</h5>
+                <div class="mb-3">
+                    <label class="form-label">Model đang hoạt động:</label>
+                    <p><code class="badge bg-primary fs-6">@Model.ActivePaidModelName</code></p>
+                </div>
+                <div class="mb-3">
+                    <h6>Kích hoạt Model Trả Phí</h6>
+                    <form method="post" asp-page-handler="SetActivePaidModel">
+                        @Html.AntiForgeryToken()
+                        <div class="input-group">
+                            <select name="id" asp-items="@(new SelectList(Model.PaidModels, "Id", "ModelName"))" class="form-select"></select>
+                            <button type="submit" class="btn btn-info">Kích hoạt</button>
+                        </div>
+                    </form>
+                </div>
+                <div>
+                    <h6>Thêm Model Trả Phí Mới</h6>
+                    <form method="post" asp-page-handler="AddPaidModel">
+                        @Html.AntiForgeryToken()
+                        <div class="input-group">
+                            <input name="newModelInput.ModelName" class="form-control" />
+                            <button type="submit" class="btn btn-success">Thêm</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === KHU VỰC API MIỄN PHÍ (FREE) === -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-secondary h-100">
+            <div class="card-header">
+                <h4><i class="bi bi-gift-fill me-2"></i>Quản lý API Miễn Phí (Free)</h4>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <div class="card mb-4">
+                    <div class="card-header"><strong>Thêm API Key Miễn Phí</strong></div>
+                    <div class="card-body">
+                        <form method="post" asp-page-handler="CreateFreeKey">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-2">
+                                <label class="form-label small">API Key (mỗi key một dòng)</label>
+                                <textarea name="apiKeyInput.ApiKeys" class="form-control" rows="2" placeholder="Dán các API key Free vào đây..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-secondary w-100">Thêm Key Free</button>
+                        </form>
+                    </div>
+                </div>
+
+                <h5 class="mt-2">Danh sách Key Miễn Phí</h5>
+                <!-- >> BẮT ĐẦU FORM CHO BẢNG KEY FREE << -->
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" asp-page-handler="DeleteSelectedKeys" onclick="return confirm('Bạn có chắc muốn XÓA các key đã chọn?');">
+                            <i class="bi bi-trash"></i> Xóa mục đã chọn
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-warning" asp-page-handler="DisableSelectedKeys" onclick="return confirm('Bạn có chắc muốn TẮT các key đã chọn?');">
+                            <i class="bi bi-power"></i> Tắt mục đã chọn
+                        </button>
+                    </div>
+                    <div class="table-responsive mb-4 flex-grow-1">
+                        <table class="table table-striped table-hover table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 5%;"><input class="form-check-input" type="checkbox" id="selectAllFree"></th>
+                                    <th>API Key (ẩn)</th>
+                                    <th class="text-center">Tokens Đã Dùng</th>
+                                    <th class="text-center">Requests / Ngày</th>
+                                    <th class="text-center">Trạng thái</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.FreeApiKeys.Any())
+                                {
+                                    @foreach (var keyViewModel in Model.FreeApiKeys)
+                                    {
+                                        var key = keyViewModel.KeyData;
+                                        <tr>
+                                            <td class="text-center"><input class="form-check-input chk-free" type="checkbox" name="selectedKeyIds" value="@key.Id"></td>
+                                            <td><code>@keyViewModel.DecryptedApiKey.Substring(0, Math.Min(keyViewModel.DecryptedApiKey.Length, 15))...</code></td>
+                                            <td class="text-center">@key.TotalTokensUsed.ToString("N0")</td>
+                                            <td class="text-center">@key.RequestsToday</td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="ToggleEnabled" asp-route-id="@key.Id" class="btn btn-sm @(key.IsEnabled ? "btn-success" : "btn-secondary")">@(key.IsEnabled ? "ON" : "OFF")</button>
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="submit" asp-page-handler="DeleteKey" asp-route-id="@key.Id" onsubmit="return confirm('Xóa key này?');" class="btn btn-sm btn-danger">Xóa</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td colspan="6" class="text-center p-3">Chưa có API Key miễn phí nào.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+                <!-- << KẾT THÚC FORM CHO BẢNG KEY FREE << -->
+
+                <h5 class="mt-auto">Quản lý Model Miễn Phí</h5>
+                <div class="mb-3">
+                    <label class="form-label">Model đang hoạt động:</label>
+                    <p><code class="badge bg-secondary fs-6">@Model.ActiveFreeModelName</code></p>
+                </div>
+                <div class="mb-3">
+                    <h6>Kích hoạt Model Miễn Phí</h6>
+                    <form method="post" asp-page-handler="SetActiveFreeModel">
+                        @Html.AntiForgeryToken()
+                        <div class="input-group">
+                            <select name="id" asp-items="@(new SelectList(Model.FreeModels, "Id", "ModelName"))" class="form-select"></select>
+                            <button type="submit" class="btn btn-info">Kích hoạt</button>
+                        </div>
+                    </form>
+                </div>
+                <div>
+                    <h6>Thêm Model Miễn Phí Mới</h6>
+                    <form method="post" asp-page-handler="AddFreeModel">
+                        @Html.AntiForgeryToken()
+                        <div class="input-group">
+                            <input name="newModelInput.ModelName" class="form-control" />
+                            <button type="submit" class="btn btn-success">Thêm</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Function to handle "select all" checkbox
+            function setupSelectAll(selectAllId, checkboxClass) {
+                const selectAllCheckbox = document.getElementById(selectAllId);
+                if (!selectAllCheckbox) return;
+
+                selectAllCheckbox.addEventListener('click', function () {
+                    const checkboxes = document.querySelectorAll('.' + checkboxClass);
+                    checkboxes.forEach(checkbox => {
+                        checkbox.checked = selectAllCheckbox.checked;
+                    });
+                });
+            }
+
+            // Setup for both sections
+            setupSelectAll('selectAllPaid', 'chk-paid');
+            setupSelectAll('selectAllFree', 'chk-free');
+        });
+    </script>
+}
