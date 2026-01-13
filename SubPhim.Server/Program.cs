@@ -66,6 +66,8 @@ builder.Services.AddScoped<IExternalApiKeyService, ExternalApiKeyService>();
 builder.Services.AddScoped<IExternalApiCreditService, ExternalApiCreditService>();
 
 // Vbee TTS Service
+builder.Services.AddSingleton<IBufferedDbWriteService, BufferedDbWriteService>(); // Buffered DB writes for VbeeTts and Translation
+builder.Services.AddHostedService(sp => sp.GetRequiredService<IBufferedDbWriteService>() as BufferedDbWriteService); // Register as hosted service
 builder.Services.AddScoped<IVbeeTtsService, VbeeTtsService>();
 builder.Services.AddHostedService<VbeeTtsSessionCleanupService>();
 

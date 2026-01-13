@@ -223,29 +223,48 @@ namespace subphimv1.Services
             }
         }
 
+        // Handler được chia sẻ giữa các HttpClient để tránh socket exhaustion
+        private static readonly SocketsHttpHandler _sharedHandler = new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+            MaxConnectionsPerServer = 20,
+            EnableMultipleHttp2Connections = true,
+            KeepAlivePingPolicy = HttpKeepAlivePingPolicy.WithActiveRequests,
+            KeepAlivePingTimeout = TimeSpan.FromSeconds(30),
+            KeepAlivePingDelay = TimeSpan.FromSeconds(60)
+        };
+        
+        private static readonly object _clientLock = new object();
+        
         static ApiService()
         {
             _apiBaseUrl = GetServerUrl();
-
-            client = new HttpClient
-            {
-                BaseAddress = new Uri(_apiBaseUrl),
-                Timeout = TimeSpan.FromSeconds(30)
-            };
-            client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            longRunningClient = new HttpClient
-            {
-                BaseAddress = new Uri(_apiBaseUrl),
-                Timeout = TimeSpan.FromMinutes(120)
-            };
-            longRunningClient.DefaultRequestHeaders.Accept.Clear();
-            longRunningClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            
+            InitializeHttpClients(new Uri(_apiBaseUrl));
             
             // Khởi tạo Vbee encryption key (phải khớp với server)
             using var sha256 = System.Security.Cryptography.SHA256.Create();
             _vbeeEncryptionKey = sha256.ComputeHash(Encoding.UTF8.GetBytes("VbeeTts@SubPhim2025SecretKey!"));
+        }
+        
+        private static void InitializeHttpClients(Uri baseUri)
+        {
+            client = new HttpClient(_sharedHandler, disposeHandler: false)
+            {
+                BaseAddress = baseUri,
+                Timeout = TimeSpan.FromSeconds(60) // Tăng từ 30s lên 60s để tránh timeout sớm
+            };
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            longRunningClient = new HttpClient(_sharedHandler, disposeHandler: false)
+            {
+                BaseAddress = baseUri,
+                Timeout = TimeSpan.FromMinutes(120)
+            };
+            longRunningClient.DefaultRequestHeaders.Accept.Clear();
+            longRunningClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
         public static void UpdateApiBaseUrl(string newBaseUrl)
         {
@@ -258,38 +277,52 @@ namespace subphimv1.Services
                 newBaseUrl += "/";
             }
 
+            // Nếu URL không thay đổi, không cần tạo lại client
+            if (_apiBaseUrl == newBaseUrl)
+            {
+                return;
+            }
+            
             _apiBaseUrl = newBaseUrl;
             try
             {
                 var newUri = new Uri(_apiBaseUrl);
 
-                // Tạo mới HttpClient thường
-                client = new HttpClient
+                lock (_clientLock)
                 {
-                    BaseAddress = newUri,
-                    Timeout = TimeSpan.FromSeconds(30)
-                };
-                client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                // Tạo mới HttpClient chạy lâu (cho các tác vụ nặng)
-                longRunningClient = new HttpClient
-                {
-                    BaseAddress = newUri,
-                    Timeout = TimeSpan.FromMinutes(120)
-                };
-                longRunningClient.DefaultRequestHeaders.Accept.Clear();
-                longRunningClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                // QUAN TRỌNG: Nếu đang đăng nhập, cần gắn lại Token cho client mới
-                if (!string.IsNullOrEmpty(_jwtToken))
-                {
-                    var authHeader = new AuthenticationHeaderValue("Bearer", _jwtToken);
-                    client.DefaultRequestHeaders.Authorization = authHeader;
-                    longRunningClient.DefaultRequestHeaders.Authorization = authHeader;
+                    // Lưu token cũ trước khi tạo client mới
+                    var savedToken = _jwtToken;
+                    
+                    // Dispose client cũ nếu có (giải phóng sockets)
+                    // Lưu ý: không dispose handler vì nó được chia sẻ
+                    var oldClient = client;
+                    var oldLongRunningClient = longRunningClient;
+                    
+                    // Tạo client mới sử dụng shared handler
+                    InitializeHttpClients(newUri);
+                    
+                    // QUAN TRỌNG: Gắn lại Token cho client mới
+                    if (!string.IsNullOrEmpty(savedToken))
+                    {
+                        var authHeader = new AuthenticationHeaderValue("Bearer", savedToken);
+                        client.DefaultRequestHeaders.Authorization = authHeader;
+                        longRunningClient.DefaultRequestHeaders.Authorization = authHeader;
+                    }
+                    
+                    // Dispose client cũ sau khi đã tạo client mới
+                    // Delay nhỏ để đảm bảo không có request đang chạy
+                    Task.Delay(100).ContinueWith(_ =>
+                    {
+                        try
+                        {
+                            oldClient?.Dispose();
+                            oldLongRunningClient?.Dispose();
+                        }
+                        catch { /* Ignore dispose errors */ }
+                    });
                 }
-                // Lưu ý: Không lưu URL trực tiếp vào registry ở đây
-                // Việc lưu server index được xử lý tại HomepageWindow khi user chọn server
+                
+                Debug.WriteLine($"[ApiService] Updated API base URL to: {_apiBaseUrl}");
             }
             catch (UriFormatException ex)
             {

@@ -52,6 +52,7 @@ namespace SubPhim.Server.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<VbeeTtsService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IBufferedDbWriteService _bufferedWriter;
         private readonly byte[] _encryptionKey;
         private readonly byte[] _obfuscationSalt;
         
@@ -64,12 +65,14 @@ namespace SubPhim.Server.Services
             AppDbContext context,
             IConfiguration configuration,
             ILogger<VbeeTtsService> logger,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IBufferedDbWriteService bufferedWriter)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _bufferedWriter = bufferedWriter;
             
             // Khởi tạo encryption key từ config hoặc tạo mặc định
             var keyString = _configuration["VbeeTts:EncryptionKey"] ?? "VbeeTts@SubPhim2025SecretKey!";
@@ -312,28 +315,23 @@ namespace SubPhim.Server.Services
 
         public async Task<bool> ReportCharacterUsageAsync(string sessionId, string token, long charactersUsed)
         {
-            var session = await _context.VbeeTtsSessions.FirstOrDefaultAsync(
+            // Validate session exists (read-only, no tracking)
+            var session = await _context.VbeeTtsSessions.AsNoTracking().FirstOrDefaultAsync(
                 s => s.SessionId == sessionId && s.ObfuscationToken == token);
             
             if (session == null) return false;
 
-            session.CharactersProcessed += charactersUsed;
-            session.LastHeartbeatAt = DateTime.UtcNow;
+            // === SỬ DỤNG BUFFERED WRITE ĐỂ GIẢM DB LOCK ===
+            // Buffered write sẽ gom lại và ghi batch mỗi 10 giây
+            _bufferedWriter.BufferVbeeCharacterUsage(sessionId, session.UserId, charactersUsed);
+            _bufferedWriter.BufferVbeeSessionHeartbeat(sessionId);
             
+            // Nếu session ở trạng thái Pending, cần update status ngay
             if (session.Status == VbeeTtsSessionStatus.Pending)
             {
-                session.Status = VbeeTtsSessionStatus.Processing;
+                _bufferedWriter.BufferVbeeSessionStatusChange(sessionId, VbeeTtsSessionStatus.Processing);
             }
-
-            // Cập nhật user quota
-            var user = await _context.Users.FindAsync(session.UserId);
-            if (user != null)
-            {
-                user.VbeeCharactersUsed += charactersUsed;
-                session.CharactersCharged += charactersUsed;
-            }
-
-            await _context.SaveChangesAsync();
+            
             return true;
         }
 
@@ -417,13 +415,15 @@ namespace SubPhim.Server.Services
 
         public async Task<bool> HeartbeatAsync(string sessionId, string token)
         {
-            var session = await _context.VbeeTtsSessions.FirstOrDefaultAsync(
+            // Validate session exists (read-only check)
+            var sessionExists = await _context.VbeeTtsSessions.AsNoTracking().AnyAsync(
                 s => s.SessionId == sessionId && s.ObfuscationToken == token);
             
-            if (session == null) return false;
+            if (!sessionExists) return false;
 
-            session.LastHeartbeatAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            // === SỬ DỤNG BUFFERED WRITE - KHÔNG GHI DB NGAY ===
+            // Heartbeat được buffer và ghi batch mỗi 10 giây
+            _bufferedWriter.BufferVbeeSessionHeartbeat(sessionId);
             return true;
         }
 

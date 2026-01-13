@@ -45,7 +45,6 @@ namespace subphimv1
             var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
             CurrentVersion = $"{version.Major}.{version.Minor}.{version.Build}";
         }
-        private DispatcherTimer _profileRefreshTimer;
         public void ShowJianyingWindow()
         {
             if (_jianyingWindow == null || !_jianyingWindow.IsLoaded)
@@ -75,18 +74,14 @@ namespace subphimv1
                 _capcutWindow.Activate();
             }
         }
+        /// <summary>
+        /// Gọi khi đăng nhập thành công. Heartbeat trong UserViewModel sẽ tự động refresh mỗi 30 giây,
+        /// phương thức này chỉ thực hiện refresh ngay lập tức và cập nhật permissions.
+        /// </summary>
         public void StartProfileRefreshTimer()
         {
-            if (_profileRefreshTimer != null && _profileRefreshTimer.IsEnabled)
-            {
-                return;
-            }
-            _profileRefreshTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMinutes(3)
-            };
-            _profileRefreshTimer.Tick += ProfileRefreshTimer_Tick;
-            _profileRefreshTimer.Start();
+            // Heartbeat trong UserViewModel đã xử lý việc refresh định kỳ (mỗi 30 giây)
+            // Phương thức này chỉ thực hiện refresh ngay lập tức khi được gọi
             _ = RefreshUserProfileNow();
             if (_mainWindow != null)
             {
@@ -114,18 +109,13 @@ namespace subphimv1
             }
         }
 
+        /// <summary>
+        /// Được gọi khi logout. Trong phiên bản mới, heartbeat được stop trong UserViewModel.Logout(),
+        /// nhưng giữ phương thức này cho tương thích ngược nếu có code khác gọi.
+        /// </summary>
         public void StopProfileRefreshTimer()
         {
-            if (_profileRefreshTimer != null)
-            {
-                _profileRefreshTimer.Stop();
-                _profileRefreshTimer = null;
-            }
-        }
-
-        private async void ProfileRefreshTimer_Tick(object sender, EventArgs e)
-        {
-            await RefreshUserProfileNow();
+            // Heartbeat được quản lý bởi UserViewModel, không cần làm gì ở đây
         }
 
         public async Task RefreshUserProfileNow()
@@ -136,19 +126,30 @@ namespace subphimv1
                 return;
             }
 
-            var (success, refreshedUser, message) = await ApiService.RefreshUserProfileAsync();
-            var (statusSuccess, usageStatus, statusMessage) = await ApiService.GetUsageStatusAsync();
-            if (success && refreshedUser != null)
+            try
             {
-                User.UpdateFromDto(refreshedUser);
-                if (statusSuccess)
+                var (success, refreshedUser, message) = await ApiService.RefreshUserProfileAsync();
+                var (statusSuccess, usageStatus, statusMessage) = await ApiService.GetUsageStatusAsync();
+                
+                if (success && refreshedUser != null)
                 {
-                    User.UpdateUsageStatus(usageStatus);
+                    User.UpdateFromDto(refreshedUser);
+                    User.OnRefreshSuccess(); // Reset bộ đếm lỗi của heartbeat
+                    if (statusSuccess)
+                    {
+                        User.UpdateUsageStatus(usageStatus);
+                    }
+                }
+                else
+                {
+                    // Heartbeat trong UserViewModel sẽ tự động xử lý việc logout nếu mất kết nối liên tục
+                    Debug.WriteLine($"[App] Profile refresh failed: {message}");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                ShowNotification("Mất kết nối tới máy chủ, sẽ thử làm mới lại sau.", true);
+                Debug.WriteLine($"[App] Exception during profile refresh: {ex.Message}");
+                // Heartbeat sẽ phát hiện và xử lý lỗi kết nối
             }
         }
 

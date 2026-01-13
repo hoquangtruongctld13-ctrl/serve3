@@ -20,6 +20,7 @@ namespace SubPhim.Server.Services
         private readonly GlobalRequestRateLimiterService _globalRateLimiter;
         private readonly ProxyService _proxyService;
         private readonly ProxyRateLimiterService _proxyRateLimiter;
+        private readonly IBufferedDbWriteService _bufferedWriter;
 
         // === RPM Limiter per API Key ===
         private static readonly ConcurrentDictionary<int, SemaphoreSlim> _keyRpmLimiters = new();
@@ -87,7 +88,8 @@ namespace SubPhim.Server.Services
             JobCancellationService cancellationService,
             GlobalRequestRateLimiterService globalRateLimiter,
             ProxyService proxyService,
-            ProxyRateLimiterService proxyRateLimiter)
+            ProxyRateLimiterService proxyRateLimiter,
+            IBufferedDbWriteService bufferedWriter)
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
@@ -97,6 +99,7 @@ namespace SubPhim.Server.Services
             _globalRateLimiter = globalRateLimiter;
             _proxyService = proxyService;
             _proxyRateLimiter = proxyRateLimiter;
+            _bufferedWriter = bufferedWriter;
         }
 
         // =====================================================================
@@ -1150,33 +1153,18 @@ namespace SubPhim.Server.Services
             await context.SaveChangesAsync();
         }
 
-        private async Task UpdateUsageInDb(int apiKeyId, int tokensUsed)
+        /// <summary>
+        /// Cập nhật usage cho API key - Sử dụng buffered write để giảm DB lock
+        /// </summary>
+        private Task UpdateUsageInDb(int apiKeyId, int tokensUsed)
         {
-            try
+            // === SỬ DỤNG BUFFERED WRITE THAY VÌ GHI TRỰC TIẾP ===
+            // BufferedDbWriteService sẽ gom các thay đổi và ghi batch mỗi 10 giây
+            if (tokensUsed > 0)
             {
-                using var scope = _serviceProvider.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var apiKey = await context.ManagedApiKeys.FindAsync(apiKeyId);
-                if (apiKey == null) return;
-
-                var vietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-                var vietnamNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vietnamTimeZone);
-                var lastResetInVietnam = TimeZoneInfo.ConvertTimeFromUtc(apiKey.LastRequestCountResetUtc, vietnamTimeZone);
-
-                if (lastResetInVietnam.Date < vietnamNow.Date)
-                {
-                    apiKey.RequestsToday = 0;
-                    apiKey.LastRequestCountResetUtc = DateTime.UtcNow.Date;
-                }
-
-                apiKey.RequestsToday++;
-                if (tokensUsed > 0) apiKey.TotalTokensUsed += tokensUsed;
-                await context.SaveChangesAsync();
+                _bufferedWriter.BufferApiKeyUsage(apiKeyId, tokensUsed);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to update usage for key {KeyId}", apiKeyId);
-            }
+            return Task.CompletedTask;
         }
 
         private async Task CheckAndRefundFailedLinesAsync(string sessionId)
