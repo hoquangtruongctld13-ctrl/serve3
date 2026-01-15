@@ -69,6 +69,20 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
             
             // Proxy Rate Limiting Settings
             [Required][Range(1, 1000)] public int RpmPerProxy { get; set; }
+
+            // === Antigravity API Settings ===
+            public bool AntigravityEnabled { get; set; }
+            [StringLength(500)] public string AntigravityBaseUrl { get; set; } = "http://host.docker.internal:8045/v1";
+            [StringLength(200)] public string AntigravityApiKey { get; set; } = "sk-antigravity";
+            [Range(1, 1000)] public int AntigravityRpm { get; set; } = 60;
+            [Range(1, 500)] public int AntigravityBatchSize { get; set; } = 200;
+            [Range(0, 60000)] public int AntigravityDelayMs { get; set; } = 5000;
+            [StringLength(100)] public string AntigravityDefaultModel { get; set; } = "gemini-3-flash";
+            public string AntigravityModelsJson { get; set; } = "[]";
+            [Range(10, 600)] public int AntigravityTimeoutSeconds { get; set; } = 240;
+
+            // === Direct API Settings ===
+            public bool DirectApiEnabled { get; set; } = true;
         }
         #endregion
 
@@ -87,7 +101,19 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
                 MaxOutputTokens = settingsFromDb.MaxOutputTokens,
                 EnableThinkingBudget = settingsFromDb.EnableThinkingBudget,
                 ThinkingBudget = settingsFromDb.ThinkingBudget,
-                RpmPerProxy = settingsFromDb.RpmPerProxy
+                RpmPerProxy = settingsFromDb.RpmPerProxy,
+                // Antigravity Settings
+                AntigravityEnabled = settingsFromDb.AntigravityEnabled,
+                AntigravityBaseUrl = settingsFromDb.AntigravityBaseUrl,
+                AntigravityApiKey = settingsFromDb.AntigravityApiKey,
+                AntigravityRpm = settingsFromDb.AntigravityRpm,
+                AntigravityBatchSize = settingsFromDb.AntigravityBatchSize,
+                AntigravityDelayMs = settingsFromDb.AntigravityDelayMs,
+                AntigravityDefaultModel = settingsFromDb.AntigravityDefaultModel,
+                AntigravityModelsJson = settingsFromDb.AntigravityModelsJson,
+                AntigravityTimeoutSeconds = settingsFromDb.AntigravityTimeoutSeconds,
+                // Direct API Settings
+                DirectApiEnabled = settingsFromDb.DirectApiEnabled
             };
         }
         public async Task<IActionResult> OnPostDeleteSelectedKeysAsync([FromForm] int[] selectedKeyIds)
@@ -188,6 +214,21 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
                 settingsInDb.EnableThinkingBudget = GlobalSettings.EnableThinkingBudget;
                 settingsInDb.ThinkingBudget = GlobalSettings.ThinkingBudget;
                 settingsInDb.RpmPerProxy = GlobalSettings.RpmPerProxy;
+                
+                // Antigravity Settings
+                settingsInDb.AntigravityEnabled = GlobalSettings.AntigravityEnabled;
+                settingsInDb.AntigravityBaseUrl = GlobalSettings.AntigravityBaseUrl ?? "http://host.docker.internal:8045/v1";
+                settingsInDb.AntigravityApiKey = GlobalSettings.AntigravityApiKey ?? "sk-antigravity";
+                settingsInDb.AntigravityRpm = GlobalSettings.AntigravityRpm;
+                settingsInDb.AntigravityBatchSize = GlobalSettings.AntigravityBatchSize;
+                settingsInDb.AntigravityDelayMs = GlobalSettings.AntigravityDelayMs;
+                settingsInDb.AntigravityDefaultModel = GlobalSettings.AntigravityDefaultModel ?? "gemini-3-flash";
+                settingsInDb.AntigravityModelsJson = GlobalSettings.AntigravityModelsJson ?? "[]";
+                settingsInDb.AntigravityTimeoutSeconds = GlobalSettings.AntigravityTimeoutSeconds;
+                
+                // Direct API Settings
+                settingsInDb.DirectApiEnabled = GlobalSettings.DirectApiEnabled;
+                
                 await _context.SaveChangesAsync();
                 SuccessMessage = "Đã lưu thành công cài đặt chung.";
             }

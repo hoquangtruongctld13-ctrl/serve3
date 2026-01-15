@@ -18,8 +18,8 @@ namespace SubPhim.Server.Services
         
         // Constants for health check
         private const int CHECK_TIMEOUT_SECONDS = 15;
-        private const int MAX_CONCURRENT_CHECKS = 5; // Giới hạn kiểm tra đồng thời
-        private const int DELAY_BETWEEN_CHECKS_MS = 200; // Delay giữa các lần check
+        private const int MAX_CONCURRENT_CHECKS = 20; // Tăng lên để kiểm tra nhanh hơn
+        private const int DELAY_BETWEEN_CHECKS_MS = 50; // Giảm delay để nhanh hơn
         private const string GOOGLE_TEST_URL = "https://generativelanguage.googleapis.com/"; // URL Google AI để test
         
         // Track ongoing checks
@@ -83,19 +83,22 @@ namespace SubPhim.Server.Services
             catch (TaskCanceledException)
             {
                 stopwatch.Stop();
-                return (false, (int)stopwatch.ElapsedMilliseconds, "Timeout");
+                // Timeout - ghi lại latency = timeout value để biết proxy chậm
+                return (false, CHECK_TIMEOUT_SECONDS * 1000, "Timeout");
             }
             catch (HttpRequestException ex)
             {
                 stopwatch.Stop();
                 var shortMessage = ex.Message.Length > 80 ? ex.Message.Substring(0, 80) + "..." : ex.Message;
-                return (false, -1, $"Error: {shortMessage}");
+                // Ghi lại latency thực tế khi lỗi
+                return (false, Math.Max((int)stopwatch.ElapsedMilliseconds, 1), $"Error: {shortMessage}");
             }
             catch (Exception ex)
             {
                 stopwatch.Stop();
                 var shortMessage = ex.Message.Length > 80 ? ex.Message.Substring(0, 80) + "..." : ex.Message;
-                return (false, -1, $"Error: {shortMessage}");
+                // Ghi lại latency thực tế khi lỗi  
+                return (false, Math.Max((int)stopwatch.ElapsedMilliseconds, 1), $"Error: {shortMessage}");
             }
             finally
             {
@@ -120,7 +123,8 @@ namespace SubPhim.Server.Services
             
             var (success, latencyMs, status) = await CheckProxyLatencyAsync(proxy, cancellationToken);
             
-            proxy.LatencyMs = success ? latencyMs : null;
+            // Luôn ghi latencyMs để biết proxy chậm bao nhiêu (cả khi fail/timeout)
+            proxy.LatencyMs = latencyMs > 0 ? latencyMs : null;
             proxy.LastLatencyCheckUtc = DateTime.UtcNow;
             proxy.LatencyCheckStatus = status;
             
@@ -196,7 +200,8 @@ namespace SubPhim.Server.Services
                             var proxyToUpdate = await updateContext.Proxies.FindAsync(new object[] { proxy.Id }, cancellationToken);
                             if (proxyToUpdate != null)
                             {
-                                proxyToUpdate.LatencyMs = success ? latencyMs : null;
+                                // Luôn ghi latencyMs để biết proxy chậm bao nhiêu
+                                proxyToUpdate.LatencyMs = latencyMs > 0 ? latencyMs : null;
                                 proxyToUpdate.LastLatencyCheckUtc = DateTime.UtcNow;
                                 proxyToUpdate.LatencyCheckStatus = status;
                                 

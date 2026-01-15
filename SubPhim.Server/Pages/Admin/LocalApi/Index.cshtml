@@ -67,6 +67,91 @@
                                 </div>
                                 <input asp-for="GlobalSettings.ThinkingBudget" class="form-control" />
                             </div>
+                    </div>
+                    
+                    <hr class="my-3" />
+                    <h6 class="text-primary mb-3"><i class="bi bi-rocket-takeoff me-1"></i> Antigravity API (OpenAI-compatible)</h6>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" asp-for="GlobalSettings.AntigravityEnabled" id="antigravityEnabledSwitch">
+                                <label class="form-check-label" for="antigravityEnabledSwitch">
+                                    <strong>Bật Antigravity API</strong>
+                                    <small class="text-muted d-block">Chạy song song với Direct API để tăng throughput</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row" id="antigravitySettings">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityBaseUrl" class="form-label">Base URL</label>
+                            <input asp-for="GlobalSettings.AntigravityBaseUrl" class="form-control" placeholder="http://host.docker.internal:8045/v1" />
+                            <small class="text-muted">
+                                Docker: http://host.docker.internal:8045/v1<br/>
+                                Native: http://127.0.0.1:8045/v1
+                            </small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityApiKey" class="form-label">API Key</label>
+                            <input asp-for="GlobalSettings.AntigravityApiKey" class="form-control" type="password" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityRpm" class="form-label">Request/Phút (RPM)</label>
+                            <input asp-for="GlobalSettings.AntigravityRpm" class="form-control" />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityBatchSize" class="form-label">Số dòng SRT/Request</label>
+                            <input asp-for="GlobalSettings.AntigravityBatchSize" class="form-control" />
+                            <small class="text-muted">Mặc định: 200</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityDelayMs" class="form-label">Delay mỗi batch (ms)</label>
+                            <input asp-for="GlobalSettings.AntigravityDelayMs" class="form-control" />
+                            <small class="text-muted">Mặc định: 5000</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityTimeoutSeconds" class="form-label">Timeout (giây)</label>
+                            <input asp-for="GlobalSettings.AntigravityTimeoutSeconds" class="form-control" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityDefaultModel" class="form-label">Model mặc định</label>
+                            <select asp-for="GlobalSettings.AntigravityDefaultModel" class="form-select" id="antigravityModelSelect">
+                                <option value="gemini-3-flash">Gemini 3 Flash</option>
+                                <option value="gemini-3-pro-high">Gemini 3 Pro High</option>
+                                <option value="gemini-3-pro-low">Gemini 3 Pro Low</option>
+                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                <option value="claude-sonnet-4-5">Claude 4.5 Sonnet</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label asp-for="GlobalSettings.AntigravityModelsJson" class="form-label">Danh sách Models (JSON)</label>
+                            <textarea asp-for="GlobalSettings.AntigravityModelsJson" class="form-control" rows="3" 
+                                placeholder='[{"displayName":"Gemini 3 Flash","modelId":"gemini-3-flash"}]'></textarea>
+                            <small class="text-muted">Định dạng: [{"displayName":"...", "modelId":"..."}]</small>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-3" />
+                    <h6 class="text-warning mb-3"><i class="bi bi-cloud-arrow-up me-1"></i> Direct API (Google Generative AI)</h6>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" asp-for="GlobalSettings.DirectApiEnabled" id="directApiEnabledSwitch">
+                                <label class="form-check-label" for="directApiEnabledSwitch">
+                                    <strong>Bật Direct API</strong>
+                                    <small class="text-muted d-block">Sử dụng Google Generative AI trực tiếp (tắt nếu chỉ muốn dùng Antigravity)</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="alert alert-warning mb-0 py-2">
+                                <small>
+                                    <i class="bi bi-exclamation-triangle me-1"></i><strong>Lưu ý:</strong> Nếu tắt Direct API và bật Antigravity API, hệ thống sẽ CHỈ sử dụng Antigravity.<br/>
+                                    <i class="bi bi-info-circle me-1"></i>Nếu cả hai đều bật, Antigravity sẽ được thử trước, Direct API làm fallback.
+                                </small>
+                            </div>
                         </div>
                     </div>
                     
@@ -79,9 +164,8 @@
                             <small class="text-muted">Số request tối đa mỗi proxy có thể xử lý trong 1 phút</small>
                         </div>
                         <div class="col-md-8 mb-3 d-flex align-items-center">
-                            <div class="alert alert-success mb-0 py-2 w-100">
+                            <div class="alert alert-info mb-0 py-2 w-100">
                                 <small>
-                                    <strong>Mặc định:</strong> 10 request/phút/proxy<br/>
                                     <i class="bi bi-info-circle me-1"></i>Mỗi proxy chỉ nhận tối đa X request/phút. Nếu đạt giới hạn, hệ thống sẽ chuyển sang proxy khác.<br/>
                                     <i class="bi bi-exclamation-triangle text-warning me-1"></i>Chỉ tính request khi kết nối thành công đến API Gemini, lỗi kết nối proxy không tính.
                                 </small>

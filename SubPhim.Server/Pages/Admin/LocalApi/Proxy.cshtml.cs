@@ -29,6 +29,18 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
         public int ActiveProxyCount { get; set; }
         public int MeasuredProxyCount { get; set; }
         public bool IsCheckRunning { get; set; }
+        
+        // KiotProxy Auto-Rotation settings
+        public KiotProxySettingsModel KiotProxySettings { get; set; } = new();
+        
+        public class KiotProxySettingsModel
+        {
+            public bool Enabled { get; set; }
+            public string ApiKeys { get; set; } = "";
+            public int IntervalMinutes { get; set; } = 5;
+            public string Region { get; set; } = "random";
+            public string ProxyType { get; set; } = "socks5";
+        }
 
         [TempData] public string SuccessMessage { get; set; }
         [TempData] public string ErrorMessage { get; set; }
@@ -50,6 +62,20 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
             
             ActiveProxyCount = Proxies.Count(p => p.IsEnabled);
             MeasuredProxyCount = Proxies.Count(p => p.LatencyMs.HasValue && p.LatencyCheckStatus == "OK");
+            
+            // Load KiotProxy settings
+            var settings = await _context.LocalApiSettings.FindAsync(1);
+            if (settings != null)
+            {
+                KiotProxySettings = new KiotProxySettingsModel
+                {
+                    Enabled = settings.KiotProxyRotationEnabled,
+                    ApiKeys = settings.KiotProxyApiKeys ?? "",
+                    IntervalMinutes = settings.KiotProxyRotationIntervalMinutes,
+                    Region = settings.KiotProxyRegion ?? "random",
+                    ProxyType = settings.KiotProxyType ?? "socks5"
+                };
+            }
         }
 
         /// <summary>
@@ -322,7 +348,8 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
             {
                 var (success, latencyMs, status) = await _healthCheckService.CheckProxyLatencyAsync(proxy);
                 
-                proxy.LatencyMs = success ? latencyMs : null;
+                // Luôn ghi latencyMs để biết proxy chậm bao nhiêu (cả khi fail/timeout)
+                proxy.LatencyMs = latencyMs > 0 ? latencyMs : null;
                 proxy.LastLatencyCheckUtc = DateTime.UtcNow;
                 proxy.LatencyCheckStatus = status;
                 
@@ -334,7 +361,8 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
                 }
                 else
                 {
-                    ErrorMessage = $"Proxy {proxy.Host}:{proxy.Port} - {status}";
+                    // Hiển thị cả latencyMs khi fail để biết proxy chậm bao nhiêu
+                    ErrorMessage = $"Proxy {proxy.Host}:{proxy.Port} - {status} ({latencyMs}ms)";
                 }
                 
                 _logger.LogInformation("Checked proxy {Id} ({Host}:{Port}): {Status}, Latency: {LatencyMs}ms", 
@@ -396,6 +424,77 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
                 
                 SuccessMessage = $"Đã reset latency cho proxy {proxy.Host}:{proxy.Port}";
                 _logger.LogInformation("Reset latency for proxy {Id} ({Host}:{Port})", id, proxy.Host, proxy.Port);
+            }
+            
+            return RedirectToPage();
+        }
+        
+        /// <summary>
+        /// Cập nhật cài đặt KiotProxy Auto-Rotation
+        /// </summary>
+        public async Task<IActionResult> OnPostUpdateKiotProxySettingsAsync(
+            [FromForm] bool kiotProxyEnabled,
+            [FromForm] string? kiotProxyApiKeys,
+            [FromForm] int kiotProxyIntervalMinutes,
+            [FromForm] string? kiotProxyRegion,
+            [FromForm] string? kiotProxyType)
+        {
+            try
+            {
+                var settings = await _context.LocalApiSettings.FindAsync(1);
+                if (settings == null)
+                {
+                    settings = new LocalApiSetting { Id = 1 };
+                    _context.LocalApiSettings.Add(settings);
+                }
+                
+                settings.KiotProxyRotationEnabled = kiotProxyEnabled;
+                settings.KiotProxyApiKeys = kiotProxyApiKeys ?? "";
+                settings.KiotProxyRotationIntervalMinutes = Math.Max(1, Math.Min(60, kiotProxyIntervalMinutes));
+                settings.KiotProxyRegion = kiotProxyRegion ?? "random";
+                settings.KiotProxyType = kiotProxyType ?? "socks5";
+                
+                await _context.SaveChangesAsync();
+                
+                SuccessMessage = "Đã lưu cài đặt KiotProxy Auto-Rotation thành công!";
+                _logger.LogInformation("KiotProxy settings updated: Enabled={Enabled}, Keys={KeyCount}, Interval={Interval}min",
+                    kiotProxyEnabled, 
+                    (kiotProxyApiKeys ?? "").Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries).Length,
+                    kiotProxyIntervalMinutes);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating KiotProxy settings");
+                ErrorMessage = $"Lỗi khi lưu cài đặt: {ex.Message}";
+            }
+            
+            return RedirectToPage();
+        }
+        
+        /// <summary>
+        /// Force xoay proxy ngay lập tức
+        /// </summary>
+        public IActionResult OnPostForceKiotProxyRotation()
+        {
+            try
+            {
+                // Lấy KiotProxyRotationService từ DI và gọi ForceRotationAll
+                using var scope = HttpContext.RequestServices.CreateScope();
+                var rotationServices = scope.ServiceProvider.GetServices<IHostedService>()
+                    .OfType<KiotProxyRotationService>();
+                
+                foreach (var service in rotationServices)
+                {
+                    service.ForceRotationAll();
+                }
+                
+                SuccessMessage = "Đã yêu cầu xoay proxy ngay lập tức! Proxy mới sẽ được lấy trong vài giây.";
+                _logger.LogInformation("Force KiotProxy rotation requested");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error forcing KiotProxy rotation");
+                ErrorMessage = $"Lỗi: {ex.Message}";
             }
             
             return RedirectToPage();

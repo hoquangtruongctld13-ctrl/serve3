@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  subphim-server:
+    build: ./SubPhim.Server
+    container_name: subphim_app
+    restart: always
+    ports:
+      - "80:8080"
+    volumes:
+      - ./app_data:/data
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      # Antigravity API Settings (có thể override từ database)
+      - AntigravitySettings__Enabled=false
+      - AntigravitySettings__BaseUrl=http://host.docker.internal:8045/v1
+    extra_hosts:
+      # Cho phép container gọi host machine qua host.docker.internal
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

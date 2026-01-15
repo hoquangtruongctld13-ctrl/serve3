@@ -80,6 +80,18 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <hr />
+                    <h6 class="text-muted">Giới hạn Vbee TTS</h6>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label asp-for="FreeTierSettings.VbeeCharacterLimit" class="form-label"></label>
+                            <input type="number" asp-for="FreeTierSettings.VbeeCharacterLimit" class="form-control" />
+                            <div class="form-text">
+                                <strong>Khuyến nghị:</strong> Free = 0 (tắt), Có phí = số ký tự giới hạn. Reset theo tháng.
+                            </div>
+                        </div>
+                    </div>
                     <!-- === KẾT THÚC THÊM MỚI === -->
                 </div>
             </div>

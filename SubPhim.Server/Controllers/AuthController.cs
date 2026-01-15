@@ -324,48 +324,105 @@ long TtsCharacterLimit,
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        if (await _context.BannedDevices.AnyAsync(b => b.Hwid == request.Hwid))
+        try
         {
-            return StatusCode(403, "Thiết bị của bạn đã bị cấm đăng ký tài khoản mới.");
-        }
+            _logger.LogInformation("Register attempt: Username={Username}, Email={Email}, Hwid={Hwid}", 
+                request.Username, request.Email, request.Hwid?.Substring(0, Math.Min(8, request.Hwid?.Length ?? 0)) + "...");
+            
+            // Validation
+            if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password) ||
+                string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Hwid))
+            {
+                return BadRequest("Thông tin đăng ký không đầy đủ.");
+            }
+            
+            // Set timeout for the entire operation
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var ct = cts.Token;
+            
+            if (await _context.BannedDevices.AnyAsync(b => b.Hwid == request.Hwid, ct))
+            {
+                _logger.LogWarning("Register blocked: Banned device {Hwid}", request.Hwid);
+                return StatusCode(403, "Thiết bị của bạn đã bị cấm đăng ký tài khoản mới.");
+            }
 
-        if (await _context.Devices.AnyAsync(d => d.Hwid == request.Hwid))
-        {
-            return BadRequest("Mỗi thiết bị chỉ được phép đăng ký một tài khoản duy nhất.");
-        }
+            if (await _context.Devices.AnyAsync(d => d.Hwid == request.Hwid, ct))
+            {
+                _logger.LogWarning("Register blocked: Device already registered {Hwid}", request.Hwid);
+                return BadRequest("Mỗi thiết bị chỉ được phép đăng ký một tài khoản duy nhất.");
+            }
 
-        if (await _context.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower()))
-        {
-            return BadRequest("Tên tài khoản đã tồn tại.");
-        }
-        if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == request.Email.ToLower()))
-        {
-            return BadRequest("Email đã được sử dụng.");
-        }
-        string newUid;
-        var random = new Random();
-        do
-        {
-            // Tạo một số ngẫu nhiên 9 chữ số
-            newUid = random.Next(100_000_000, 1_000_000_000).ToString();
-        }
-        // Kiểm tra để đảm bảo UID là duy nhất trong DB
-        while (await _context.Users.AnyAsync(u => u.Uid == newUid));
-        var user = new User
-        {
-            Uid = newUid,
-            Username = request.Username,
-            Email = request.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            CreatedAt = DateTime.UtcNow,
-            IsBlocked = false
-        };
-        _tierSettingsService.ApplyTierSettings(user, SubscriptionTier.Free);
-        user.Devices.Add(new Device { Hwid = request.Hwid, LastLogin = DateTime.UtcNow });
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+            if (await _context.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower(), ct))
+            {
+                return BadRequest("Tên tài khoản đã tồn tại.");
+            }
+            if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == request.Email.ToLower(), ct))
+            {
+                return BadRequest("Email đã được sử dụng.");
+            }
+            
+            // Generate UID with max attempts to avoid infinite loop
+            string newUid;
+            var random = new Random();
+            int attempts = 0;
+            const int maxAttempts = 10;
+            do
+            {
+                if (attempts++ >= maxAttempts)
+                {
+                    _logger.LogError("Register failed: Could not generate unique UID after {Attempts} attempts", maxAttempts);
+                    return StatusCode(500, "Không thể tạo tài khoản. Vui lòng thử lại.");
+                }
+                newUid = random.Next(100_000_000, 1_000_000_000).ToString();
+            }
+            while (await _context.Users.AnyAsync(u => u.Uid == newUid, ct));
+            
+            var user = new User
+            {
+                Uid = newUid,
+                Username = request.Username,
+                Email = request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                CreatedAt = DateTime.UtcNow,
+                IsBlocked = false
+            };
+            
+            // Apply tier settings with error handling
+            try
+            {
+                _tierSettingsService.ApplyTierSettings(user, SubscriptionTier.Free);
+            }
+            catch (Exception tierEx)
+            {
+                _logger.LogWarning(tierEx, "Failed to apply tier settings, using safe defaults");
+                // Apply safe defaults manually
+                user.Tier = SubscriptionTier.Free;
+                user.GrantedFeatures = GrantedFeatures.None;
+                user.AllowedApiAccess = AllowedApis.OpenRouter;
+                user.VideoDurationLimitMinutes = 30;
+                user.DailyVideoLimit = 2;
+                user.DailyRequestLimitOverride = 30;
+                user.DailySrtLineLimit = 1000;
+                user.MaxDevices = 1;
+            }
+            
+            user.Devices.Add(new Device { Hwid = request.Hwid, LastLogin = DateTime.UtcNow });
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync(ct);
 
-        return Ok("Đăng ký thành công!");
+            _logger.LogInformation("Register success: Username={Username}, UID={Uid}", request.Username, newUid);
+            return Ok("Đăng ký thành công!");
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogError("Register timeout: Username={Username}", request.Username);
+            return StatusCode(504, "Server quá tải. Vui lòng thử lại sau.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Register error: Username={Username}", request.Username);
+            return StatusCode(500, "Đã xảy ra lỗi khi đăng ký. Vui lòng thử lại sau.");
+        }
     }
 
     [HttpPost("login")]

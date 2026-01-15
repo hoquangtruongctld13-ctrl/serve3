@@ -57,6 +57,8 @@ builder.Services.AddHttpClient("AioLauncherClient", client =>
 });
 builder.Services.AddControllers();
 builder.Services.AddSingleton<TranslationOrchestratorService>();
+builder.Services.AddSingleton<AntigravityTranslationService>();
+builder.Services.AddHostedService<KiotProxyRotationService>(); // KiotProxy auto-rotation
 builder.Services.AddSingleton<VipTranslationService>();
 builder.Services.AddScoped<ISubtitleOrchestratorService, SubtitleOrchestratorService>(); // Subtitle distributed translation
 builder.Services.AddMemoryCache();
@@ -503,7 +505,27 @@ static void EnsureMissingColumnsExist(AppDbContext context, ILogger logger)
             ("Proxies", "LastLatencyCheckUtc", "TEXT NULL"),
             ("Proxies", "LatencyCheckStatus", "TEXT NULL"),
             // === UpdateInfo ForceUpdate ===
-            ("UpdateInfos", "ForceUpdate", "INTEGER NOT NULL DEFAULT 0")
+            ("UpdateInfos", "ForceUpdate", "INTEGER NOT NULL DEFAULT 0"),
+            // === Antigravity API Settings ===
+            ("LocalApiSettings", "AntigravityEnabled", "INTEGER NOT NULL DEFAULT 0"),
+            ("LocalApiSettings", "AntigravityBaseUrl", "TEXT NOT NULL DEFAULT 'http://host.docker.internal:8045/v1'"),
+            ("LocalApiSettings", "AntigravityApiKey", "TEXT NOT NULL DEFAULT 'sk-antigravity'"),
+            ("LocalApiSettings", "AntigravityRpm", "INTEGER NOT NULL DEFAULT 60"),
+            ("LocalApiSettings", "AntigravityBatchSize", "INTEGER NOT NULL DEFAULT 200"),
+            ("LocalApiSettings", "AntigravityDelayMs", "INTEGER NOT NULL DEFAULT 5000"),
+            ("LocalApiSettings", "AntigravityDefaultModel", "TEXT NOT NULL DEFAULT 'gemini-3-flash'"),
+            ("LocalApiSettings", "AntigravityModelsJson", "TEXT NOT NULL DEFAULT '[]'"),
+            ("LocalApiSettings", "AntigravityTimeoutSeconds", "INTEGER NOT NULL DEFAULT 240"),
+            ("LocalApiSettings", "AntigravityModelRotation", "INTEGER NOT NULL DEFAULT 0"),
+            ("LocalApiSettings", "AntigravityRotationModels", "TEXT NOT NULL DEFAULT 'gemini-3-flash,gemini-3-pro-high,gemini-3-pro-low,gemini-2.5-pro'"),
+            // === Direct API Settings ===
+            ("LocalApiSettings", "DirectApiEnabled", "INTEGER NOT NULL DEFAULT 1"),
+            // === KiotProxy Auto-Rotation Settings ===
+            ("LocalApiSettings", "KiotProxyRotationEnabled", "INTEGER NOT NULL DEFAULT 0"),
+            ("LocalApiSettings", "KiotProxyApiKeys", "TEXT NOT NULL DEFAULT ''"),
+            ("LocalApiSettings", "KiotProxyRotationIntervalMinutes", "INTEGER NOT NULL DEFAULT 5"),
+            ("LocalApiSettings", "KiotProxyRegion", "TEXT NOT NULL DEFAULT 'random'"),
+            ("LocalApiSettings", "KiotProxyType", "TEXT NOT NULL DEFAULT 'socks5'")
         };
 
         foreach (var (tableName, columnName, columnDefinition) in columnsToAdd)

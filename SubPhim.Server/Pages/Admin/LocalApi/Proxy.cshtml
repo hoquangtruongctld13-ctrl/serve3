@@ -250,6 +250,112 @@ http://admin:pass123@proxy.example.com:8080
     </div>
 </div>
 
+<!-- KiotProxy Auto-Rotation Settings -->
+<div class="card mt-3 border-warning">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-arrow-repeat me-2"></i>KiotProxy Auto-Rotation</h5>
+        <span class="badge @(Model.KiotProxySettings.Enabled ? "bg-success" : "bg-secondary")">
+            @(Model.KiotProxySettings.Enabled ? "Đang bật" : "Đã tắt")
+        </span>
+    </div>
+    <div class="card-body">
+        <form method="post" asp-page-handler="UpdateKiotProxySettings">
+            @Html.AntiForgeryToken()
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="kiotProxyEnabled" id="kiotProxyEnabled" 
+                                   @(Model.KiotProxySettings.Enabled ? "checked" : "")>
+                            <label class="form-check-label fw-bold" for="kiotProxyEnabled">
+                                <i class="bi bi-lightning-charge me-1"></i>Bật tự động xoay proxy
+                            </label>
+                        </div>
+                        <small class="text-muted">Tự động lấy và thay thế proxy từ KiotProxy API theo thời gian cài đặt.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Danh sách API Keys (mỗi dòng một key)</label>
+                        <textarea name="kiotProxyApiKeys" class="form-control font-monospace" rows="4" 
+                                  placeholder="key1&#10;key2&#10;key3">@Model.KiotProxySettings.ApiKeys</textarea>
+                        <small class="text-muted">Mỗi key sẽ quản lý 1 proxy riêng. Nhiều key = nhiều proxy.</small>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Thời gian xoay (phút)</label>
+                            <input type="number" name="kiotProxyIntervalMinutes" class="form-control" 
+                                   value="@Model.KiotProxySettings.IntervalMinutes" min="1" max="60">
+                            <small class="text-muted">Mặc định: 5 phút</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Vùng proxy</label>
+                            <select name="kiotProxyRegion" class="form-select" id="kiotProxyRegion">
+                                @{
+                                    var regions = new[] { ("random", "🎲 Ngẫu nhiên"), ("bac", "🏔️ Miền Bắc"), ("trung", "🏖️ Miền Trung"), ("nam", "🌴 Miền Nam") };
+                                    foreach (var r in regions)
+                                    {
+                                        if (Model.KiotProxySettings.Region == r.Item1)
+                                        {
+                                            <option value="@r.Item1" selected>@r.Item2</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@r.Item1">@r.Item2</option>
+                                        }
+                                    }
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Loại proxy</label>
+                        <select name="kiotProxyType" class="form-select" id="kiotProxyType">
+                            @{
+                                var types = new[] { ("socks5", "SOCKS5 (Khuyến nghị)"), ("http", "HTTP") };
+                                foreach (var t in types)
+                                {
+                                    if (Model.KiotProxySettings.ProxyType == t.Item1)
+                                    {
+                                        <option value="@t.Item1" selected>@t.Item2</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@t.Item1">@t.Item2</option>
+                                    }
+                                }
+                            }
+                        </select>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-save me-1"></i>Lưu cài đặt
+                        </button>
+                        <button type="submit" asp-page-handler="ForceKiotProxyRotation" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Xoay ngay
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alert alert-info py-2 mt-3 mb-0">
+                <small>
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Cách hoạt động:</strong> Mỗi API key sẽ quản lý 1 proxy riêng. 
+                    Sau mỗi interval, hệ thống sẽ tự động gọi API lấy proxy mới, xóa proxy cũ và thêm proxy mới vào danh sách.
+                    Proxy tự động có ghi chú "KiotProxy Auto" để dễ phân biệt.
+                </small>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Thông tin hướng dẫn -->
 <div class="card mt-3">
     <div class="card-header">

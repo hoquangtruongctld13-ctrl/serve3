@@ -55,6 +55,9 @@ namespace SubPhim.Server.Pages.Admin
             
             [Display(Name = "Giới hạn Dịch VIP SRT / Ngày")]
             public int DailyVipSrtLimit { get; set; }
+            
+            [Display(Name = "Giới hạn Ký tự Vbee TTS")]
+            public long VbeeCharacterLimit { get; set; }
             // === KẾT THÚC THÊM MỚI ===
         }
 
@@ -85,7 +88,8 @@ namespace SubPhim.Server.Pages.Admin
                 // === BẮT ĐẦU THÊM MỚI ===
                 AioCharacterLimit = freeSettings.AioCharacterLimit,
                 AioRequestsPerMinute = freeSettings.AioRequestsPerMinute,
-                DailyVipSrtLimit = freeSettings.DailyVipSrtLimit
+                DailyVipSrtLimit = freeSettings.DailyVipSrtLimit,
+                VbeeCharacterLimit = freeSettings.VbeeCharacterLimit
                 // === KẾT THÚC THÊM MỚI ===
             };
 
@@ -119,6 +123,7 @@ namespace SubPhim.Server.Pages.Admin
                 freeSettingsInDb.AioCharacterLimit = FreeTierSettings.AioCharacterLimit;
                 freeSettingsInDb.AioRequestsPerMinute = FreeTierSettings.AioRequestsPerMinute;
                 freeSettingsInDb.DailyVipSrtLimit = FreeTierSettings.DailyVipSrtLimit;
+                freeSettingsInDb.VbeeCharacterLimit = FreeTierSettings.VbeeCharacterLimit;
                 // === KẾT THÚC THÊM MỚI ===
 
                 await _context.SaveChangesAsync();

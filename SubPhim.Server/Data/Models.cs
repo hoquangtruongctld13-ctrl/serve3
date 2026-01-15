@@ -596,6 +596,68 @@ namespace SubPhim.Server.Data
         [Display(Name = "Request/Phút/Proxy (RPM)")]
         public int RpmPerProxy { get; set; } = 10;
 
+        // --- ANTIGRAVITY API SETTINGS ---
+        [Display(Name = "Bật Antigravity API")]
+        public bool AntigravityEnabled { get; set; } = false;
+
+        [Display(Name = "Antigravity Base URL")]
+        [StringLength(500)]
+        public string AntigravityBaseUrl { get; set; } = "http://host.docker.internal:8045/v1";
+
+        [Display(Name = "Antigravity API Key")]
+        [StringLength(200)]
+        public string AntigravityApiKey { get; set; } = "sk-antigravity";
+
+        [Display(Name = "Antigravity Request/Phút (RPM)")]
+        public int AntigravityRpm { get; set; } = 60;
+
+        [Display(Name = "Số dòng SRT/Request Antigravity")]
+        public int AntigravityBatchSize { get; set; } = 200;
+
+        [Display(Name = "Delay giữa các batch Antigravity (ms)")]
+        public int AntigravityDelayMs { get; set; } = 5000;
+
+        [Display(Name = "Antigravity Model mặc định")]
+        [StringLength(100)]
+        public string AntigravityDefaultModel { get; set; } = "gemini-3-flash";
+
+        [Display(Name = "Danh sách Models Antigravity (JSON)")]
+        [Column(TypeName = "TEXT")]
+        public string AntigravityModelsJson { get; set; } = "[{\"displayName\":\"Gemini 3 Flash\",\"modelId\":\"gemini-3-flash\"},{\"displayName\":\"Gemini 3 Pro High\",\"modelId\":\"gemini-3-pro-high\"},{\"displayName\":\"Gemini 3 Pro Low\",\"modelId\":\"gemini-3-pro-low\"},{\"displayName\":\"Gemini 3 Pro (Image)\",\"modelId\":\"gemini-3-pro-image\"},{\"displayName\":\"Gemini 2.5 Flash\",\"modelId\":\"gemini-2.5-flash\"},{\"displayName\":\"Gemini 2.5 Flash Lite\",\"modelId\":\"gemini-2.5-flash-lite\"},{\"displayName\":\"Gemini 2.5 Pro\",\"modelId\":\"gemini-2.5-pro\"},{\"displayName\":\"Gemini 2.5 Flash (Thinking)\",\"modelId\":\"gemini-2.5-flash-thinking\"},{\"displayName\":\"Claude 4.5 Sonnet\",\"modelId\":\"claude-sonnet-4-5\"}]";
+
+        [Display(Name = "Timeout Antigravity (giây)")]
+        public int AntigravityTimeoutSeconds { get; set; } = 240;
+
+        [Display(Name = "Bật luân phiên Models")]
+        public bool AntigravityModelRotation { get; set; } = false;
+
+        [Display(Name = "Danh sách Models luân phiên (phân cách bởi dấu phẩy)")]
+        [StringLength(500)]
+        public string AntigravityRotationModels { get; set; } = "gemini-3-flash,gemini-3-pro-high,gemini-3-pro-low,gemini-2.5-pro";
+
+        // --- DIRECT API SETTINGS ---
+        [Display(Name = "Bật Direct API (Google Generative AI)")]
+        public bool DirectApiEnabled { get; set; } = true;
+
+        // --- KIOTPROXY AUTO-ROTATION SETTINGS ---
+        [Display(Name = "Bật tự động xoay proxy KiotProxy")]
+        public bool KiotProxyRotationEnabled { get; set; } = false;
+
+        [Display(Name = "Danh sách API Keys KiotProxy (mỗi key một dòng)")]
+        [Column(TypeName = "TEXT")]
+        public string KiotProxyApiKeys { get; set; } = "";
+
+        [Display(Name = "Thời gian xoay proxy (phút)")]
+        public int KiotProxyRotationIntervalMinutes { get; set; } = 5;
+
+        [Display(Name = "Vùng proxy (random/bac/trung/nam)")]
+        [StringLength(20)]
+        public string KiotProxyRegion { get; set; } = "random";
+
+        [Display(Name = "Loại proxy (socks5/http)")]
+        [StringLength(10)]
+        public string KiotProxyType { get; set; } = "socks5";
+
         // --- KẾT THÚC THÊM CÁC TRƯỜNG MỚI ---
     }
     

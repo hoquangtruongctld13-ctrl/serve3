@@ -21,6 +21,7 @@ namespace SubPhim.Server.Services
         private readonly ProxyService _proxyService;
         private readonly ProxyRateLimiterService _proxyRateLimiter;
         private readonly IBufferedDbWriteService _bufferedWriter;
+        private readonly AntigravityTranslationService _antigravityService;
 
         // === RPM Limiter per API Key ===
         private static readonly ConcurrentDictionary<int, SemaphoreSlim> _keyRpmLimiters = new();
@@ -89,7 +90,8 @@ namespace SubPhim.Server.Services
             GlobalRequestRateLimiterService globalRateLimiter,
             ProxyService proxyService,
             ProxyRateLimiterService proxyRateLimiter,
-            IBufferedDbWriteService bufferedWriter)
+            IBufferedDbWriteService bufferedWriter,
+            AntigravityTranslationService antigravityService)
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
@@ -100,6 +102,7 @@ namespace SubPhim.Server.Services
             _proxyService = proxyService;
             _proxyRateLimiter = proxyRateLimiter;
             _bufferedWriter = bufferedWriter;
+            _antigravityService = antigravityService;
         }
 
         // =====================================================================
@@ -340,23 +343,246 @@ namespace SubPhim.Server.Services
             {
                 try
                 {
-                    var (results, tokensUsed, usedKeyId) = await TranslateBatchAsync(
-                        batch, job, settings, modelName, job.SystemInstruction,
-                        poolType, encryptionService, availableKeys, rpmPerKey, token);
+                    var finalResults = new Dictionary<int, TranslatedSrtLineDb>();
+                    int totalTokensUsed = 0;
+                    int? usedKeyId = null;
 
-                    // Kiểm tra kết quả
-                    int successCount = results.Count(r => r.Success);
-                    int totalCount = results.Count;
-                    double successRate = (double)successCount / totalCount;
+                    bool useAntigravity = settings.AntigravityEnabled;
+                    bool useDirectApi = settings.DirectApiEnabled;
 
-                    if (successRate >= 0.7) // Ít nhất 70% thành công
+                    // Nếu không có API nào enabled
+                    if (!useAntigravity && !useDirectApi)
                     {
-                        _logger.LogInformation("Batch {BatchIndex} completed: {Success}/{Total} lines ({Rate:P0})",
-                            batchIndex, successCount, totalCount, successRate);
-                        return (true, results, tokensUsed, usedKeyId);
+                        _logger.LogError("Batch {BatchIndex}: No API enabled!", batchIndex);
+                        var errorResults = batch.Select(l => new TranslatedSrtLineDb
+                        {
+                            SessionId = job.SessionId,
+                            LineIndex = l.LineIndex,
+                            TranslatedText = "[LỖI: Không có API nào được bật]",
+                            Success = false,
+                            ErrorType = "NO_API_ENABLED"
+                        }).ToList();
+                        return (false, errorResults, 0, null);
                     }
 
-                    // Quá nhiều lỗi, retry batch
+                    // === SONG SONG THỰC SỰ: Chia batch cho cả 2 API ===
+                    if (useAntigravity && useDirectApi)
+                    {
+                        // Chia batch thành 2 phần: 50/50
+                        int midPoint = batch.Count / 2;
+                        var antigravityBatch = batch.Take(midPoint).ToList();
+                        var directApiBatch = batch.Skip(midPoint).ToList();
+
+                        _logger.LogInformation("Batch {BatchIndex}: PARALLEL - Antigravity ({AG} lines) + Direct API ({DA} lines)",
+                            batchIndex, antigravityBatch.Count, directApiBatch.Count);
+
+                        // Chạy song song cả 2
+                        var antigravityTask = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (translations, tokens, error) = await _antigravityService.TranslateBatchAsync(
+                                    antigravityBatch,
+                                    job.TargetLanguage,
+                                    job.SystemInstruction,
+                                    settings.AntigravityDefaultModel,
+                                    job.UserId,
+                                    token);
+
+                                if (error != null)
+                                {
+                                    _logger.LogWarning("Batch {BatchIndex}: Antigravity error: {Error}", batchIndex, error);
+                                    return (translations: new Dictionary<int, string>(), tokens: 0, error: error);
+                                }
+                                return (translations, tokens, error: (string?)null);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Batch {BatchIndex}: Antigravity exception", batchIndex);
+                                return (translations: new Dictionary<int, string>(), tokens: 0, error: ex.Message);
+                            }
+                        }, token);
+
+                        var directApiTask = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                return await TranslateBatchAsync(
+                                    directApiBatch, job, settings, modelName, job.SystemInstruction,
+                                    poolType, encryptionService, availableKeys, rpmPerKey, token);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Batch {BatchIndex}: Direct API exception", batchIndex);
+                                var errorResults = directApiBatch.Select(l => new TranslatedSrtLineDb
+                                {
+                                    SessionId = job.SessionId,
+                                    LineIndex = l.LineIndex,
+                                    TranslatedText = $"[LỖI: {ex.Message}]",
+                                    Success = false,
+                                    ErrorType = "DIRECT_API_ERROR"
+                                }).ToList();
+                                return (results: errorResults, tokensUsed: 0, usedKeyId: (int?)null);
+                            }
+                        }, token);
+
+                        // Đợi cả 2 hoàn thành
+                        await Task.WhenAll(antigravityTask, directApiTask);
+
+                        var agResult = await antigravityTask;
+                        var daResult = await directApiTask;
+
+                        // Gộp kết quả Antigravity
+                        foreach (var line in antigravityBatch)
+                        {
+                            if (agResult.translations.TryGetValue(line.LineIndex, out var translated) && !string.IsNullOrWhiteSpace(translated))
+                            {
+                                finalResults[line.LineIndex] = new TranslatedSrtLineDb
+                                {
+                                    SessionId = job.SessionId,
+                                    LineIndex = line.LineIndex,
+                                    TranslatedText = translated,
+                                    Success = true
+                                };
+                            }
+                            else
+                            {
+                                // Antigravity failed cho dòng này - cần retry qua Direct API
+                                finalResults[line.LineIndex] = new TranslatedSrtLineDb
+                                {
+                                    SessionId = job.SessionId,
+                                    LineIndex = line.LineIndex,
+                                    TranslatedText = "[ANTIGRAVITY_FAILED]",
+                                    Success = false,
+                                    ErrorType = "ANTIGRAVITY_MISSING",
+                                    ErrorDetail = agResult.error ?? "Missing translation"
+                                };
+                            }
+                        }
+                        totalTokensUsed += agResult.tokens;
+
+                        // Gộp kết quả Direct API
+                        foreach (var result in daResult.results)
+                        {
+                            finalResults[result.LineIndex] = result;
+                        }
+                        totalTokensUsed += daResult.tokensUsed;
+                        usedKeyId = daResult.usedKeyId;
+
+                        // === FALLBACK: Các dòng Antigravity failed → retry qua Direct API ===
+                        var failedAntigravityLines = antigravityBatch
+                            .Where(l => finalResults.ContainsKey(l.LineIndex) && !finalResults[l.LineIndex].Success)
+                            .ToList();
+
+                        if (failedAntigravityLines.Any())
+                        {
+                            _logger.LogInformation("Batch {BatchIndex}: Retrying {Count} failed Antigravity lines via Direct API",
+                                batchIndex, failedAntigravityLines.Count);
+
+                            try
+                            {
+                                var retryResult = await TranslateBatchAsync(
+                                    failedAntigravityLines, job, settings, modelName, job.SystemInstruction,
+                                    poolType, encryptionService, availableKeys, rpmPerKey, token);
+
+                                foreach (var result in retryResult.results)
+                                {
+                                    finalResults[result.LineIndex] = result;
+                                }
+                                totalTokensUsed += retryResult.tokensUsed;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Batch {BatchIndex}: Direct API fallback failed", batchIndex);
+                            }
+                        }
+
+                        _logger.LogInformation("Batch {BatchIndex}: PARALLEL completed - AG: {AG} tokens, DA: {DA} tokens",
+                            batchIndex, agResult.tokens, daResult.tokensUsed);
+                    }
+                    // === CHỈ ANTIGRAVITY ===
+                    else if (useAntigravity)
+                    {
+                        _logger.LogDebug("Batch {BatchIndex}: Using Antigravity only", batchIndex);
+
+                        var (translations, tokens, error) = await _antigravityService.TranslateBatchAsync(
+                            batch,
+                            job.TargetLanguage,
+                            job.SystemInstruction,
+                            settings.AntigravityDefaultModel,
+                            job.UserId,
+                            token);
+
+                        totalTokensUsed = tokens;
+
+                        foreach (var line in batch)
+                        {
+                            if (translations.TryGetValue(line.LineIndex, out var translated) && !string.IsNullOrWhiteSpace(translated))
+                            {
+                                finalResults[line.LineIndex] = new TranslatedSrtLineDb
+                                {
+                                    SessionId = job.SessionId,
+                                    LineIndex = line.LineIndex,
+                                    TranslatedText = translated,
+                                    Success = true
+                                };
+                            }
+                            else
+                            {
+                                finalResults[line.LineIndex] = new TranslatedSrtLineDb
+                                {
+                                    SessionId = job.SessionId,
+                                    LineIndex = line.LineIndex,
+                                    TranslatedText = $"[LỖI: {error ?? "Không có bản dịch"}]",
+                                    Success = false,
+                                    ErrorType = "ANTIGRAVITY_ERROR",
+                                    ErrorDetail = error
+                                };
+                            }
+                        }
+                    }
+                    // === CHỈ DIRECT API ===
+                    else
+                    {
+                        _logger.LogDebug("Batch {BatchIndex}: Using Direct API only", batchIndex);
+
+                        var directResult = await TranslateBatchAsync(
+                            batch, job, settings, modelName, job.SystemInstruction,
+                            poolType, encryptionService, availableKeys, rpmPerKey, token);
+
+                        foreach (var result in directResult.results)
+                        {
+                            finalResults[result.LineIndex] = result;
+                        }
+                        totalTokensUsed = directResult.tokensUsed;
+                        usedKeyId = directResult.usedKeyId;
+                    }
+
+                    // Build final results list theo thứ tự ban đầu
+                    var orderedResults = batch
+                        .Select(l => finalResults.TryGetValue(l.LineIndex, out var r) ? r : new TranslatedSrtLineDb
+                        {
+                            SessionId = job.SessionId,
+                            LineIndex = l.LineIndex,
+                            TranslatedText = "[LỖI: Không tìm thấy kết quả]",
+                            Success = false,
+                            ErrorType = "MISSING_RESULT"
+                        })
+                        .ToList();
+
+                    // Kiểm tra kết quả
+                    int successCount = orderedResults.Count(r => r.Success);
+                    int totalCount = orderedResults.Count;
+                    double successRate = (double)successCount / totalCount;
+
+                    if (successRate >= 0.7)
+                    {
+                        string source = (useAntigravity && useDirectApi) ? "PARALLEL" : (useAntigravity ? "Antigravity" : "Direct API");
+                        _logger.LogInformation("Batch {BatchIndex} completed: {Success}/{Total} lines ({Rate:P0}) via {Source}",
+                            batchIndex, successCount, totalCount, successRate, source);
+                        return (true, orderedResults, totalTokensUsed, usedKeyId);
+                    }
+
                     _logger.LogWarning("Batch {BatchIndex} has low success rate ({Rate:P0}). Retry {Retry}/{Max}",
                         batchIndex, successRate, batchRetryCount + 1, MAX_BATCH_RETRY_ATTEMPTS);
                 }
@@ -373,7 +599,7 @@ namespace SubPhim.Server.Services
                 }
             }
 
-            // Tất cả retry thất bại - trả về error results
+            // Tất cả retry thất bại
             _logger.LogError("Batch {BatchIndex} FAILED after {Max} retry attempts", batchIndex, MAX_BATCH_RETRY_ATTEMPTS);
 
             var failedResults = batch.Select(l => new TranslatedSrtLineDb
