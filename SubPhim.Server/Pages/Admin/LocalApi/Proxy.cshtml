@@ -266,8 +266,10 @@ http://admin:pass123@proxy.example.com:8080
                 <div class="col-md-6">
                     <div class="mb-3">
                         <div class="form-check form-switch">
+                            <!-- Hidden input để đảm bảo false được gửi khi checkbox không được chọn -->
+                            <input type="hidden" name="kiotProxyEnabled" value="false" />
                             <input class="form-check-input" type="checkbox" name="kiotProxyEnabled" id="kiotProxyEnabled" 
-                                   @(Model.KiotProxySettings.Enabled ? "checked" : "")>
+                                   value="true" @(Model.KiotProxySettings.Enabled ? "checked" : "")>
                             <label class="form-check-label fw-bold" for="kiotProxyEnabled">
                                 <i class="bi bi-lightning-charge me-1"></i>Bật tự động xoay proxy
                             </label>

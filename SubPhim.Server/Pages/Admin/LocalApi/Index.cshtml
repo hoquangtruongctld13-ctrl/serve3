@@ -131,6 +131,19 @@
                                 placeholder='[{"displayName":"Gemini 3 Flash","modelId":"gemini-3-flash"}]'></textarea>
                             <small class="text-muted">Định dạng: [{"displayName":"...", "modelId":"..."}]</small>
                         </div>
+                        <div class="col-md-12 mb-3">
+                            <button type="submit" class="btn btn-outline-primary" asp-page-handler="TestAntigravityConnection">
+                                <i class="bi bi-plug me-1"></i> Test Kết Nối Antigravity
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(Model.AntigravityTestResult))
+                        {
+                            <div class="col-md-12 mb-3">
+                                <div class="alert @(Model.AntigravityTestResult.StartsWith("✅") ? "alert-success" : Model.AntigravityTestResult.StartsWith("⚠") ? "alert-warning" : "alert-danger")" style="white-space: pre-wrap; font-family: monospace;">
+                                    @Model.AntigravityTestResult
+                                </div>
+                            </div>
+                        }
                     </div>
                     
                     <hr class="my-3" />

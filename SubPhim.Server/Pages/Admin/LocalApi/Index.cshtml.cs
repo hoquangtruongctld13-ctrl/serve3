@@ -35,6 +35,7 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
 
         [TempData] public string SuccessMessage { get; set; }
         [TempData] public string ErrorMessage { get; set; }
+        [TempData] public string AntigravityTestResult { get; set; }
 
         #region ViewModels and InputModels (Nested classes)
         public class ApiKeyViewModel
@@ -236,6 +237,112 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
             {
                 ErrorMessage = "Lỗi khi lưu cài đặt: " + ex.Message;
             }
+            return RedirectToPage();
+        }
+
+        /// <summary>
+        /// Test kết nối đến Antigravity API
+        /// </summary>
+        public async Task<IActionResult> OnPostTestAntigravityConnectionAsync()
+        {
+            try
+            {
+                var settingsFromDb = await _context.LocalApiSettings.FindAsync(1);
+                if (settingsFromDb == null)
+                {
+                    AntigravityTestResult = "❌ Chưa có cài đặt. Vui lòng lưu cài đặt trước.";
+                    return RedirectToPage();
+                }
+
+                var baseUrl = settingsFromDb.AntigravityBaseUrl?.TrimEnd('/') ?? "http://host.docker.internal:8045/v1";
+                var apiKey = settingsFromDb.AntigravityApiKey ?? "sk-antigravity";
+
+                using var httpClient = new HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(10);
+                httpClient.DefaultRequestHeaders.Authorization = 
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+                // Test 1: Health check
+                var healthUrl = baseUrl.Replace("/v1", "") + "/healthz";
+                HttpResponseMessage healthResponse;
+                try
+                {
+                    healthResponse = await httpClient.GetAsync(healthUrl);
+                }
+                catch (HttpRequestException ex)
+                {
+                    AntigravityTestResult = $"❌ Không thể kết nối: {ex.Message}\n\n" +
+                        $"URL: {healthUrl}\n" +
+                        $"Kiểm tra:\n" +
+                        $"1. Antigravity service đang chạy?\n" +
+                        $"2. URL đúng chưa? (Docker: host.docker.internal:8045)\n" +
+                        $"3. Firewall/Security group cho phép kết nối?";
+                    return RedirectToPage();
+                }
+
+                if (!healthResponse.IsSuccessStatusCode)
+                {
+                    AntigravityTestResult = $"❌ Health check thất bại: HTTP {(int)healthResponse.StatusCode}\n" +
+                        $"URL: {healthUrl}";
+                    return RedirectToPage();
+                }
+
+                // Test 2: Models endpoint
+                var modelsUrl = $"{baseUrl}/models";
+                var modelsResponse = await httpClient.GetAsync(modelsUrl);
+                var modelsContent = await modelsResponse.Content.ReadAsStringAsync();
+
+                // Test 3: Simple chat completion
+                var testPayload = new
+                {
+                    model = settingsFromDb.AntigravityDefaultModel ?? "gemini-3-flash",
+                    messages = new[] { new { role = "user", content = "Trả lời 'OK' để xác nhận kết nối." } },
+                    max_tokens = 10
+                };
+
+                var jsonContent = new StringContent(
+                    Newtonsoft.Json.JsonConvert.SerializeObject(testPayload),
+                    System.Text.Encoding.UTF8,
+                    "application/json");
+
+                var chatResponse = await httpClient.PostAsync($"{baseUrl}/chat/completions", jsonContent);
+                var chatContent = await chatResponse.Content.ReadAsStringAsync();
+
+                stopwatch.Stop();
+
+                if (chatResponse.IsSuccessStatusCode)
+                {
+                    var responseObj = Newtonsoft.Json.Linq.JObject.Parse(chatContent);
+                    var responseText = responseObj["choices"]?[0]?["message"]?["content"]?.ToString() ?? "(no response)";
+                    var tokensUsed = responseObj["usage"]?["total_tokens"]?.ToObject<int>() ?? 0;
+
+                    AntigravityTestResult = $"✅ Kết nối thành công!\n\n" +
+                        $"📍 URL: {baseUrl}\n" +
+                        $"🔑 API Key: {apiKey.Substring(0, Math.Min(apiKey.Length, 10))}...\n" +
+                        $"🤖 Model: {settingsFromDb.AntigravityDefaultModel}\n" +
+                        $"⏱️ Thời gian phản hồi: {stopwatch.ElapsedMilliseconds}ms\n" +
+                        $"📊 Tokens sử dụng: {tokensUsed}\n" +
+                        $"💬 Response: {responseText.Substring(0, Math.Min(responseText.Length, 100))}";
+                }
+                else
+                {
+                    AntigravityTestResult = $"⚠️ Health OK nhưng Chat thất bại\n\n" +
+                        $"HTTP Status: {(int)chatResponse.StatusCode}\n" +
+                        $"Response: {chatContent.Substring(0, Math.Min(chatContent.Length, 500))}";
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                AntigravityTestResult = "❌ Timeout: Không nhận được phản hồi trong 10 giây.";
+            }
+            catch (Exception ex)
+            {
+                AntigravityTestResult = $"❌ Lỗi: {ex.Message}";
+                _logger.LogError(ex, "Antigravity connection test failed");
+            }
+
             return RedirectToPage();
         }
 

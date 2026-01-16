@@ -15,6 +15,7 @@ namespace SubPhim.Server.Services
         private readonly ILogger<KiotProxyRotationService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ProxyService _proxyService;
+        private readonly ProxyHealthCheckService _healthCheckService;
         
         private const string KIOTPROXY_BASE_URL = "https://api.kiotproxy.com/api/v1/proxies";
         private const int CHECK_SETTINGS_INTERVAL_SECONDS = 30; // Kiểm tra cài đặt mỗi 30 giây
@@ -25,16 +26,29 @@ namespace SubPhim.Server.Services
         // Lưu proxy hiện tại của mỗi API key (để xóa khi xoay)
         private readonly ConcurrentDictionary<string, int> _currentProxyIds = new();
         
+        // File để lưu trữ mapping giữa API key và proxy ID (để khôi phục sau restart)
+        private readonly string _mappingFilePath;
+        
         public KiotProxyRotationService(
             IServiceProvider serviceProvider,
             ILogger<KiotProxyRotationService> logger,
             IHttpClientFactory httpClientFactory,
-            ProxyService proxyService)
+            ProxyService proxyService,
+            ProxyHealthCheckService healthCheckService)
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
             _proxyService = proxyService;
+            _healthCheckService = healthCheckService;
+            
+            // Lưu mapping file trong thư mục data
+            var dataDir = Path.Combine(AppContext.BaseDirectory, "Data");
+            Directory.CreateDirectory(dataDir);
+            _mappingFilePath = Path.Combine(dataDir, "kiotproxy_mapping.json");
+            
+            // Load mapping từ file (nếu có)
+            LoadProxyMapping();
         }
         
         // Track service state
@@ -203,6 +217,13 @@ namespace SubPhim.Server.Services
                 _currentProxyIds[apiKey] = newProxyId;
                 _logger.LogInformation("KiotProxy: Added new proxy ID {ProxyId} for key ...{KeyId} ({Host}:{Port}, location: {Location})",
                     newProxyId, keyId, proxyData.Host, proxyData.Port, proxyData.Location);
+                
+                // Lưu mapping vào file để khôi phục sau restart
+                SaveProxyMapping();
+                
+                // Queue kiểm tra latency cho proxy mới
+                _healthCheckService.QueueProxyCheck(newProxyId);
+                _logger.LogDebug("KiotProxy: Queued latency check for new proxy ID {ProxyId}", newProxyId);
             }
             
             // Đặt thời gian xoay tiếp theo
@@ -422,6 +443,55 @@ namespace SubPhim.Server.Services
             }
             
             return result;
+        }
+        
+        /// <summary>
+        /// Lưu mapping giữa API key và proxy ID vào file
+        /// </summary>
+        private void SaveProxyMapping()
+        {
+            try
+            {
+                var mapping = _currentProxyIds.ToDictionary(k => k.Key, v => v.Value);
+                var json = JsonSerializer.Serialize(mapping, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_mappingFilePath, json);
+                _logger.LogDebug("KiotProxy: Saved proxy mapping to file ({Count} entries)", mapping.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "KiotProxy: Failed to save proxy mapping to file");
+            }
+        }
+        
+        /// <summary>
+        /// Load mapping giữa API key và proxy ID từ file
+        /// </summary>
+        private void LoadProxyMapping()
+        {
+            try
+            {
+                if (!File.Exists(_mappingFilePath))
+                {
+                    _logger.LogDebug("KiotProxy: No mapping file found, starting fresh");
+                    return;
+                }
+                
+                var json = File.ReadAllText(_mappingFilePath);
+                var mapping = JsonSerializer.Deserialize<Dictionary<string, int>>(json);
+                
+                if (mapping != null)
+                {
+                    foreach (var kvp in mapping)
+                    {
+                        _currentProxyIds[kvp.Key] = kvp.Value;
+                    }
+                    _logger.LogInformation("KiotProxy: Loaded proxy mapping from file ({Count} entries)", mapping.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "KiotProxy: Failed to load proxy mapping from file");
+            }
         }
     }
     

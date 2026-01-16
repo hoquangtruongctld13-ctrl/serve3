@@ -79,6 +79,54 @@ namespace SubPhim.Server.Services
             }
         }
 
+        /// <summary>
+        /// Chứa settings đã được tính toán cho từng mode (Antigravity/Direct/Hybrid)
+        /// </summary>
+        public record EffectiveJobSettings
+        {
+            public bool UseAntigravity { get; init; }
+            public bool UseDirectApi { get; init; }
+            public bool IsAntigravityOnly => UseAntigravity && !UseDirectApi;
+            public bool IsDirectOnly => !UseAntigravity && UseDirectApi;
+            public bool IsHybrid => UseAntigravity && UseDirectApi;
+            
+            // Antigravity settings
+            public int AntigravityBatchSize { get; init; } = 200;
+            public int AntigravityDelayMs { get; init; } = 5000;
+            public int AntigravityRpm { get; init; } = 60;
+            public int AntigravityTimeoutSeconds { get; init; } = 240;
+            public string AntigravityModel { get; init; } = "gemini-3-flash";
+            
+            // Direct API settings  
+            public int DirectApiBatchSize { get; init; } = 50;
+            public int DirectApiDelayMs { get; init; } = 1000;
+            public int DirectApiRpm { get; init; } = 60;
+            
+            // Effective settings (tùy theo mode)
+            public int EffectiveBatchSize => IsAntigravityOnly ? AntigravityBatchSize : DirectApiBatchSize;
+            public int EffectiveDelayMs => IsAntigravityOnly ? AntigravityDelayMs : DirectApiDelayMs;
+            public int EffectiveRpm => IsAntigravityOnly ? AntigravityRpm : DirectApiRpm;
+            
+            public static EffectiveJobSettings FromLocalApiSetting(LocalApiSetting s)
+            {
+                return new EffectiveJobSettings
+                {
+                    UseAntigravity = s.AntigravityEnabled,
+                    UseDirectApi = s.DirectApiEnabled,
+                    // Antigravity
+                    AntigravityBatchSize = s.AntigravityBatchSize > 0 ? s.AntigravityBatchSize : 200,
+                    AntigravityDelayMs = s.AntigravityDelayMs > 0 ? s.AntigravityDelayMs : 5000,
+                    AntigravityRpm = s.AntigravityRpm > 0 ? s.AntigravityRpm : 60,
+                    AntigravityTimeoutSeconds = s.AntigravityTimeoutSeconds > 0 ? s.AntigravityTimeoutSeconds : 240,
+                    AntigravityModel = s.AntigravityDefaultModel ?? "gemini-3-flash",
+                    // Direct API
+                    DirectApiBatchSize = s.BatchSize > 0 ? s.BatchSize : 50,
+                    DirectApiDelayMs = s.DelayBetweenBatchesMs > 0 ? s.DelayBetweenBatchesMs : 1000,
+                    DirectApiRpm = s.Rpm > 0 ? s.Rpm : 60
+                };
+            }
+        }
+
         public record CreateJobResult(string Status, string Message, string SessionId = null, int RemainingLines = 0);
 
         public TranslationOrchestratorService(
@@ -133,23 +181,47 @@ namespace SubPhim.Server.Services
                 await context.SaveChangesAsync(cancellationToken);
 
                 var settings = await GetLocalApiSettingsAsync(context, cancellationToken);
-                var activeModel = await context.AvailableApiModels.AsNoTracking()
-                    .FirstOrDefaultAsync(m => m.IsActive && m.PoolType == poolToUse, cancellationToken);
+                
+                // === TẠO EFFECTIVE SETTINGS ===
+                var effectiveSettings = EffectiveJobSettings.FromLocalApiSetting(settings);
+                
+                _logger.LogInformation("Job {SessionId}: Mode={Mode}, AG:{AGEnabled}(BS={AGBS},RPM={AGRPM},Delay={AGDelay}ms), DA:{DAEnabled}(BS={DABS},RPM={DARPM})",
+                    sessionId,
+                    effectiveSettings.IsAntigravityOnly ? "Antigravity-Only" : (effectiveSettings.IsHybrid ? "Hybrid" : "Direct-Only"),
+                    effectiveSettings.UseAntigravity, effectiveSettings.AntigravityBatchSize, effectiveSettings.AntigravityRpm, effectiveSettings.AntigravityDelayMs,
+                    effectiveSettings.UseDirectApi, effectiveSettings.DirectApiBatchSize, effectiveSettings.DirectApiRpm);
+                
+                // === CHECK API AVAILABILITY ===
+                AvailableApiModel? activeModel = null;
+                List<ManagedApiKey> enabledKeys = new();
+                
+                if (!effectiveSettings.IsAntigravityOnly)
+                {
+                    // Chỉ check Direct API model/keys nếu DirectApiEnabled = true
+                    activeModel = await context.AvailableApiModels.AsNoTracking()
+                        .FirstOrDefaultAsync(m => m.IsActive && m.PoolType == poolToUse, cancellationToken);
 
-                if (activeModel == null)
-                    throw new Exception($"Không có model nào đang hoạt động cho nhóm '{poolToUse}'.");
+                    if (activeModel == null && effectiveSettings.UseDirectApi)
+                        throw new Exception($"Không có model nào đang hoạt động cho nhóm '{poolToUse}'. Hãy tắt Direct API hoặc thêm model.");
 
-                // Load và filter keys
-                var enabledKeys = await context.ManagedApiKeys.AsNoTracking()
-                    .Where(k => k.IsEnabled && k.PoolType == poolToUse)
-                    .ToListAsync(cancellationToken);
+                    // Load và filter keys
+                    enabledKeys = await context.ManagedApiKeys.AsNoTracking()
+                        .Where(k => k.IsEnabled && k.PoolType == poolToUse)
+                        .ToListAsync(cancellationToken);
 
-                enabledKeys = enabledKeys.Where(k => !_cooldownService.IsInCooldown(k.Id)).ToList();
+                    enabledKeys = enabledKeys.Where(k => !_cooldownService.IsInCooldown(k.Id)).ToList();
 
-                if (!enabledKeys.Any())
-                    throw new Exception($"Không có API key nào khả dụng cho nhóm '{poolToUse}'.");
+                    if (!enabledKeys.Any() && effectiveSettings.UseDirectApi && !effectiveSettings.UseAntigravity)
+                        throw new Exception($"Không có API key nào khả dụng cho nhóm '{poolToUse}'. Hãy bật Antigravity hoặc thêm API keys.");
+                }
+                else
+                {
+                    _logger.LogInformation("Job {SessionId}: Running in Antigravity-ONLY mode (Direct API disabled)", sessionId);
+                }
 
-                int rpmPerKey = settings.Rpm;
+                // RPM: Dùng settings đúng theo mode
+                int rpmPerKey = effectiveSettings.EffectiveRpm;
+                    
                 foreach (var key in enabledKeys)
                 {
                     EnsureKeyRpmLimiter(key.Id, rpmPerKey);
@@ -160,21 +232,23 @@ namespace SubPhim.Server.Services
                     .OrderBy(l => l.LineIndex)
                     .ToListAsync(cancellationToken);
 
-                int batchSize = GetValidBatchSize(settings);
+                int batchSize = effectiveSettings.EffectiveBatchSize;
                 var batches = allLines
                     .Select((line, index) => new { line, index })
                     .GroupBy(x => x.index / batchSize)
                     .Select(g => g.Select(x => x.line).ToList())
                     .ToList();
 
-                _logger.LogInformation("Job {SessionId}: Processing {BatchCount} batches with {KeyCount} keys, RPM={Rpm}",
-                    sessionId, batches.Count, enabledKeys.Count, rpmPerKey);
+                _logger.LogInformation("Job {SessionId}: Processing {BatchCount} batches, BatchSize={BatchSize}, RPM={Rpm}",
+                    sessionId, batches.Count, batchSize, rpmPerKey);
 
                 // =================================================================
                 // CẢI TIẾN QUAN TRỌNG: XỬ LÝ BATCH TUẦN TỰ VỚI CONCURRENT LIMIT
                 // =================================================================
 
-                int maxConcurrentBatches = Math.Min(enabledKeys.Count * 2, 10); // Giới hạn concurrent
+                // Khi Antigravity-only mode: dùng AntigravityRpm để tính concurrent
+                int effectiveKeyCount = enabledKeys.Count > 0 ? enabledKeys.Count : (effectiveSettings.IsAntigravityOnly ? 10 : 1);
+                int maxConcurrentBatches = Math.Max(1, Math.Min(effectiveKeyCount * 2, 10)); // Ít nhất 1, tối đa 10
                 var semaphore = new SemaphoreSlim(maxConcurrentBatches);
                 var batchResults = new ConcurrentDictionary<int, BatchProcessResult>();
                 var processingTasks = new List<Task>();
@@ -191,9 +265,11 @@ namespace SubPhim.Server.Services
                     int currentBatchIndex = batchIndex;
 
                     // === QUAN TRỌNG: Delay thực sự giữa các batch ===
-                    if (batchIndex > 0 && settings.DelayBetweenBatchesMs > 0)
+                    int delayMs = effectiveSettings.EffectiveDelayMs;
+                    
+                    if (batchIndex > 0 && delayMs > 0)
                     {
-                        await Task.Delay(settings.DelayBetweenBatchesMs, cancellationToken);
+                        await Task.Delay(delayMs, cancellationToken);
                     }
 
                     // Đợi semaphore để giới hạn concurrent
@@ -210,8 +286,11 @@ namespace SubPhim.Server.Services
                                 $"{sessionId}_batch{currentBatchIndex}", cancellationToken);
 
                             // === CẢI TIẾN: Retry batch với timeout ===
+                            // Khi Antigravity-only mode, activeModel có thể null - dùng AntigravityModel từ effectiveSettings
+                            string modelNameToUse = activeModel?.ModelName ?? effectiveSettings.AntigravityModel;
+                            
                             var batchResult = await ProcessBatchWithRetryAsync(
-                                batch, job, settings, activeModel.ModelName,
+                                batch, job, settings, modelNameToUse,
                                 poolToUse, encryptionService, enabledKeys, rpmPerKey,
                                 currentBatchIndex, cancellationToken);
 
@@ -1337,11 +1416,6 @@ namespace SubPhim.Server.Services
                 catch (SemaphoreFullException) { }
                 catch (ObjectDisposedException) { }
             });
-        }
-
-        private int GetValidBatchSize(LocalApiSetting settings)
-        {
-            return settings?.BatchSize > 0 ? settings.BatchSize : MIN_BATCH_SIZE;
         }
 
         private async Task<LocalApiSetting> GetLocalApiSettingsAsync(AppDbContext context, CancellationToken cancellationToken)

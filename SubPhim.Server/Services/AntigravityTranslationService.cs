@@ -22,7 +22,7 @@ namespace SubPhim.Server.Services
 
         // Rate limiting cho Antigravity
         private static readonly SemaphoreSlim _rpmSemaphore = new SemaphoreSlim(60, 60); // Mặc định 60 RPM
-        private static int _currentRpmCapacity = 60;
+        private static int _currentRpmCapacity = 20;
         private static readonly object _rpmLock = new object();
 
         // Request tracking cho load balancing
@@ -57,7 +57,7 @@ namespace SubPhim.Server.Services
 
                 var httpClient = _httpClientFactory.CreateClient();
                 httpClient.Timeout = TimeSpan.FromSeconds(10);
-                httpClient.DefaultRequestHeaders.Authorization = 
+                httpClient.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", settings.AntigravityApiKey);
 
                 // Test với một request nhỏ
@@ -155,7 +155,7 @@ namespace SubPhim.Server.Services
                     httpClient.DefaultRequestHeaders.Authorization =
                         new AuthenticationHeaderValue("Bearer", settings.AntigravityApiKey);
 
-                    // Build payload
+                    // Build payload - match Python example.py format exactly
                     var payloadBuilder = new StringBuilder();
                     foreach (var line in batch)
                     {
@@ -166,21 +166,21 @@ namespace SubPhim.Server.Services
                         payloadBuilder.AppendLine($"{line.LineIndex}\t{cleanText}");
                     }
 
-                    // Combine system instruction và user prompt theo format Antigravity
-                    var fullPrompt = $@"{systemInstruction}
-
-Hãy dịch các dòng phụ đề sau sang {targetLanguage}.
+                    // User payload - giống Python: "Hãy dịch các dòng phụ đề sau theo hướng dẫn..."
+                    var userPayload = $@"Hãy dịch các dòng phụ đề sau sang {targetLanguage}.
 NHẮC LẠI format bắt buộc: index: nội dung dịch
 
 DANH SÁCH CẦN DỊCH:
 {payloadBuilder}";
 
+                    // Payload format giống Python: system message riêng, user message riêng
                     var requestPayload = new
                     {
                         model = model,
-                        messages = new[]
+                        messages = new object[]
                         {
-                            new { role = "user", content = fullPrompt }
+                            new { role = "system", content = systemInstruction },
+                            new { role = "user", content = userPayload }
                         },
                         temperature = 0.2
                     };
