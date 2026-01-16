@@ -22,7 +22,7 @@ namespace SubPhim.Server.Services
 
         // Rate limiting cho Antigravity
         private static readonly SemaphoreSlim _rpmSemaphore = new SemaphoreSlim(60, 60); // Mặc định 60 RPM
-        private static int _currentRpmCapacity = 20;
+        private static int _currentRpmCapacity = 60;
         private static readonly object _rpmLock = new object();
 
         // Request tracking cho load balancing
@@ -57,7 +57,7 @@ namespace SubPhim.Server.Services
 
                 var httpClient = _httpClientFactory.CreateClient();
                 httpClient.Timeout = TimeSpan.FromSeconds(10);
-                httpClient.DefaultRequestHeaders.Authorization =
+                httpClient.DefaultRequestHeaders.Authorization = 
                     new AuthenticationHeaderValue("Bearer", settings.AntigravityApiKey);
 
                 // Test với một request nhỏ

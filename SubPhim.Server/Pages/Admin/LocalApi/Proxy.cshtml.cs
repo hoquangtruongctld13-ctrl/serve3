@@ -433,7 +433,7 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
         /// Cập nhật cài đặt KiotProxy Auto-Rotation
         /// </summary>
         public async Task<IActionResult> OnPostUpdateKiotProxySettingsAsync(
-            [FromForm] string? kiotProxyEnabled, // Dùng string để xử lý "true,false" từ checkbox + hidden input
+            [FromForm] bool kiotProxyEnabled,
             [FromForm] string? kiotProxyApiKeys,
             [FromForm] int kiotProxyIntervalMinutes,
             [FromForm] string? kiotProxyRegion,
@@ -441,11 +441,6 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
         {
             try
             {
-                // Parse checkbox value - nếu checked sẽ gửi "true,false" hoặc chỉ "true"
-                // Nếu không checked sẽ chỉ gửi "false" từ hidden input
-                var isEnabled = !string.IsNullOrEmpty(kiotProxyEnabled) && 
-                                kiotProxyEnabled.Contains("true", StringComparison.OrdinalIgnoreCase);
-                
                 var settings = await _context.LocalApiSettings.FindAsync(1);
                 if (settings == null)
                 {
@@ -453,7 +448,7 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
                     _context.LocalApiSettings.Add(settings);
                 }
                 
-                settings.KiotProxyRotationEnabled = isEnabled;
+                settings.KiotProxyRotationEnabled = kiotProxyEnabled;
                 settings.KiotProxyApiKeys = kiotProxyApiKeys ?? "";
                 settings.KiotProxyRotationIntervalMinutes = Math.Max(1, Math.Min(60, kiotProxyIntervalMinutes));
                 settings.KiotProxyRegion = kiotProxyRegion ?? "random";
@@ -461,12 +456,9 @@ namespace SubPhim.Server.Pages.Admin.LocalApi
                 
                 await _context.SaveChangesAsync();
                 
-                SuccessMessage = isEnabled 
-                    ? "Đã BẬT KiotProxy Auto-Rotation! Proxy sẽ được xoay tự động." 
-                    : "Đã TẮT KiotProxy Auto-Rotation.";
-                    
+                SuccessMessage = "Đã lưu cài đặt KiotProxy Auto-Rotation thành công!";
                 _logger.LogInformation("KiotProxy settings updated: Enabled={Enabled}, Keys={KeyCount}, Interval={Interval}min",
-                    isEnabled, 
+                    kiotProxyEnabled, 
                     (kiotProxyApiKeys ?? "").Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries).Length,
                     kiotProxyIntervalMinutes);
             }
